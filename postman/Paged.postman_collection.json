@@ -1,0 +1,328 @@
+{
+  "info": {
+    "name": "Paged API",
+    "description": "Full API collection for Paged — a full-stack notes app with email/password + Google auth, notes, many-to-many tags, and an optional Gemini-backed AI layer (tag suggestions, semantic search, AI chat).\n\nHow to use:\n1. Set the `baseUrl` collection variable (defaults to http://localhost:3000).\n2. Run \"Auth > Sign up\" or \"Auth > Sign in\" first — Postman's cookie jar stores the `paged_session` cookie that response sets, and every other request in this collection reuses it automatically.\n3. Run any other request individually, or the whole collection top-to-bottom.\n\nSee the project README's \"API architecture & endpoints\" and \"Testing with Postman\" sections for more context.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" },
+    {
+      "key": "noteId",
+      "value": "",
+      "type": "string",
+      "description": "Set automatically by 'Create note' (see its Tests script)"
+    },
+    {
+      "key": "tagId",
+      "value": "",
+      "type": "string",
+      "description": "Set automatically by 'Create tag' (see its Tests script)"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Sign up",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"demo@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/signup", "host": ["{{baseUrl}}"], "path": ["api", "auth", "signup"] },
+            "description": "Creates an account, hashes the password with bcrypt, and immediately signs in (sets the `paged_session` httpOnly cookie).\n\nExpected response — 201 Created:\n```json\n{ \"user\": { \"id\": \"clx...\", \"email\": \"demo@example.com\" } }\n```\n\nErrors:\n- 400 if email/password fail validation (password must be 8-72 chars)\n- 409 if the email is already registered"
+          },
+          "response": []
+        },
+        {
+          "name": "Sign in",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"demo@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/signin", "host": ["{{baseUrl}}"], "path": ["api", "auth", "signin"] },
+            "description": "Signs in with email/password and sets the `paged_session` cookie.\n\nExpected response — 200 OK:\n```json\n{ \"user\": { \"id\": \"clx...\", \"email\": \"demo@example.com\" } }\n```\n\nErrors:\n- 400 `{ \"error\": \"Invalid email or password\" }` for either a wrong password or an unknown email — deliberately identical, so a caller can't use the error to enumerate registered emails."
+          },
+          "response": []
+        },
+        {
+          "name": "Get current session",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/auth/me", "host": ["{{baseUrl}}"], "path": ["api", "auth", "me"] },
+            "description": "Returns the signed-in user for the current session cookie, or null if signed out. Does not require auth (never 401s).\n\nExpected response — 200 OK:\n```json\n{ \"user\": { \"id\": \"clx...\", \"email\": \"demo@example.com\" } }\n```\nor, when signed out:\n```json\n{ \"user\": null }\n```"
+          },
+          "response": []
+        },
+        {
+          "name": "Continue with Google (browser only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/auth/google", "host": ["{{baseUrl}}"], "path": ["api", "auth", "google"] },
+            "description": "Redirects to Google's OAuth consent screen. This is meant to be opened in a browser, not called from Postman/a script — Google's consent flow requires an interactive user. Only present once `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are configured on the server.\n\nExpected response: 302 redirect to accounts.google.com, with a CSRF `state` value stashed in a short-lived cookie.\n\nThe matching `GET /api/auth/google/callback?code=...&state=...` is invoked by Google itself after the user approves — it is not meant to be called directly either."
+          },
+          "response": []
+        },
+        {
+          "name": "Sign out",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/signout",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "signout"]
+            },
+            "description": "Clears the session cookie. Requires an active session.\n\nExpected response — 200 OK:\n```json\n{ \"ok\": true }\n```"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Notes",
+      "item": [
+        {
+          "name": "List notes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes?sort=newest",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes"],
+              "query": [
+                { "key": "q", "value": "grocery", "disabled": true, "description": "Substring match on title" },
+                {
+                  "key": "tagId",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Repeatable — one or more tag ids, OR semantics"
+                },
+                { "key": "sort", "value": "newest", "description": "newest | oldest" },
+                { "key": "favoritesOnly", "value": "true", "disabled": true }
+              ]
+            },
+            "description": "Lists the signed-in user's notes, newest first by default. Requires auth.\n\nExpected response — 200 OK:\n```json\n{\n  \"notes\": [\n    {\n      \"id\": \"clx...\",\n      \"title\": \"Wedding planning\",\n      \"body\": \"<p>Book the venue</p>\",\n      \"favorite\": false,\n      \"createdAt\": \"2026-08-27T12:00:00.000Z\",\n      \"updatedAt\": \"2026-08-27T12:00:00.000Z\",\n      \"tags\": [{ \"id\": \"clx...\", \"name\": \"Wedding\", \"color\": \"blue\" }]\n    }\n  ]\n}\n```"
+          },
+          "response": []
+        },
+        {
+          "name": "Create note",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('noteId', body.note.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Wedding planning\",\n  \"body\": \"<p>Book the venue and send invites.</p>\",\n  \"tagIds\": []\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/notes", "host": ["{{baseUrl}}"], "path": ["api", "notes"] },
+            "description": "Creates a note. `body` is sanitized HTML server-side regardless of what's sent (see the README's \"Rich text editing & copy/paste\" section) and `title` is required. Saves the created note's id into the `noteId` collection variable for the requests below.\n\nExpected response — 201 Created:\n```json\n{\n  \"note\": {\n    \"id\": \"clx...\",\n    \"title\": \"Wedding planning\",\n    \"body\": \"<p>Book the venue and send invites.</p>\",\n    \"favorite\": false,\n    \"createdAt\": \"...\",\n    \"updatedAt\": \"...\",\n    \"tags\": []\n  }\n}\n```"
+          },
+          "response": []
+        },
+        {
+          "name": "Get one note",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/{{noteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes", "{{noteId}}"]
+            },
+            "description": "Fetches a single note by id. Requires auth and ownership.\n\nExpected response — 200 OK: `{ \"note\": { ... } }` (same shape as List notes).\n\nErrors:\n- 404 if the note doesn't exist **or** belongs to another user — deliberately indistinguishable from \"doesn't exist\" (never 403)."
+          },
+          "response": []
+        },
+        {
+          "name": "Update note",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Wedding planning (updated)\",\n  \"favorite\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/{{noteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes", "{{noteId}}"]
+            },
+            "description": "Partially updates a note — any of `title`, `body`, `favorite`, `tagIds` (all optional, at least one required). Used for both autosave-while-typing and one-off actions like toggling favorite.\n\nExpected response — 200 OK: `{ \"note\": { ...updated fields... } }`\n\nErrors:\n- 400 if no fields are provided, or a `tagIds` entry isn't one of your own tags\n- 404 if the note isn't yours"
+          },
+          "response": []
+        },
+        {
+          "name": "Semantic search notes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/search?q=things to buy",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes", "search"],
+              "query": [{ "key": "q", "value": "things to buy" }]
+            },
+            "description": "\"Search by meaning\" — embeds the query and ranks notes by cosine similarity to each note's precomputed embedding, unioned with any plain substring matches. Falls back to pure substring search (and reports that via `mode`) when `GEMINI_API_KEY` isn't configured or the embedding call fails.\n\nExpected response — 200 OK:\n```json\n{ \"notes\": [ { ... } ], \"mode\": \"semantic\" }\n```\nor, without AI configured:\n```json\n{ \"notes\": [ { ... } ], \"mode\": \"substring\" }\n```\n\nErrors:\n- 400 if `q` is missing/empty"
+          },
+          "response": []
+        },
+        {
+          "name": "Add tag to note",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"tagId\": \"{{tagId}}\"\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/{{noteId}}/tags",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes", "{{noteId}}", "tags"]
+            },
+            "description": "Attaches an existing tag to a note (run \"Tags > Create tag\" first to populate `{{tagId}}`). Idempotent — attaching a tag that's already on the note is a no-op, not an error. A dedicated endpoint rather than a full `tagIds` replacement, specifically so two rapid attach calls (e.g. accepting two AI suggestions back-to-back) can't race and drop one.\n\nExpected response — 200 OK: `{ \"note\": { ...with the tag now in \"tags\"... } }`\n\nErrors:\n- 400 if `tagId` isn't a valid id shape\n- 404 if the note or the tag isn't yours"
+          },
+          "response": []
+        },
+        {
+          "name": "Remove tag from note",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/{{noteId}}/tags/{{tagId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes", "{{noteId}}", "tags", "{{tagId}}"]
+            },
+            "description": "Detaches a tag from a note without deleting the tag itself.\n\nExpected response — 200 OK: `{ \"note\": { ...without that tag... } }`\n\nErrors:\n- 404 if the note isn't yours (removing a tag that was never attached is a no-op, not an error)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete note",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes/{{noteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes", "{{noteId}}"]
+            },
+            "description": "Deletes a note (and its tag associations, via cascade). Requires ownership.\n\nExpected response — 204 No Content (empty body).\n\nErrors:\n- 404 if the note isn't yours"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Tags",
+      "item": [
+        {
+          "name": "List tags",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/tags", "host": ["{{baseUrl}}"], "path": ["api", "tags"] },
+            "description": "Lists the signed-in user's tags, alphabetically.\n\nExpected response — 200 OK:\n```json\n{ \"tags\": [ { \"id\": \"clx...\", \"name\": \"Wedding\", \"color\": \"blue\" } ] }\n```"
+          },
+          "response": []
+        },
+        {
+          "name": "Create tag",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('tagId', body.tag.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Wedding\",\n  \"color\": \"blue\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/tags", "host": ["{{baseUrl}}"], "path": ["api", "tags"] },
+            "description": "Creates a tag. `color` is optional (one of `blue`, `orange`, `teal`, `green`, `pink`, `purple`, `brown` — defaults to `blue`). Idempotent by name: creating a tag with a name you already have returns your existing tag (keeping its current color) instead of erroring or duplicating. Saves the returned tag's id into the `tagId` collection variable.\n\nExpected response — 201 Created:\n```json\n{ \"tag\": { \"id\": \"clx...\", \"name\": \"Wedding\", \"color\": \"blue\" } }\n```\n\nErrors:\n- 400 if `name` is empty/too long or `color` isn't one of the presets"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete tag",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/tags/{{tagId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tags", "{{tagId}}"]
+            },
+            "description": "Deletes a tag and detaches it from every note (cascades via the join table) — the notes themselves are untouched.\n\nExpected response — 204 No Content.\n\nErrors:\n- 404 if the tag isn't yours"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "AI",
+      "item": [
+        {
+          "name": "Suggest tags",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Wedding planning\",\n  \"body\": \"Book the venue, send invites, order the cake, and confirm the caterer.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/ai/suggest-tags",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ai", "suggest-tags"]
+            },
+            "description": "Suggests 2-3 tags for a note's title/body. Never errors out for missing AI config — falls back to a local keyword-frequency heuristic when `GEMINI_API_KEY` is unset, and to the same heuristic if the Gemini call times out, rate-limits, or fails. Requires auth.\n\nExpected response — 200 OK:\n```json\n{ \"suggestions\": [\"Wedding\", \"Planning\", \"Budget\"] }\n```"
+          },
+          "response": []
+        },
+        {
+          "name": "Ask AI (chat)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messages\": [\n    { \"role\": \"user\", \"text\": \"Give me 3 tips for planning a wedding on a budget.\" }\n  ]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/ai/chat", "host": ["{{baseUrl}}"], "path": ["api", "ai", "chat"] },
+            "description": "One turn of the sidebar's \"Ask AI\" chat widget. `messages` is the full conversation so far (role `user` or `model`), capped at 40 messages / 4000 chars each; only the most recent 20 are actually sent to Gemini. Requires auth. Unlike tag suggestion, there's no offline fallback for open-ended chat — this endpoint (and the button that calls it) is only reachable at all when `GEMINI_API_KEY` is configured, since the key never reaches the browser and there's nothing meaningful to fall back to.\n\nExpected response — 200 OK:\n```json\n{ \"reply\": \"1. Set a firm budget upfront...\" }\n```\n\nErrors:\n- 400 `{ \"error\": \"AI chat isn't configured on this deployment\" }` if `GEMINI_API_KEY` is unset\n- 400 if `messages` is empty or malformed"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

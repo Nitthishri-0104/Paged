@@ -16,14 +16,22 @@ Built with Next.js (App Router) + TypeScript + PostgreSQL (Prisma) + Tailwind CS
 
 - [Features](#features)
 - [Tech stack](#tech-stack)
+- [Project structure](#project-structure)
 - [Running locally](#running-locally)
 - [Environment variables](#environment-variables)
+- [How authentication works](#how-authentication-works)
 - [Setting up Google sign-in](#setting-up-google-sign-in)
+- [Setting up the Gemini API key](#setting-up-the-gemini-api-key)
 - [Database schema](#database-schema)
-- [AI-assisted tagging & semantic search](#ai-assisted-tagging--semantic-search)
+- [API architecture & endpoints](#api-architecture--endpoints)
+- [AI-assisted tagging, semantic search & AI chat](#ai-assisted-tagging-semantic-search--ai-chat)
+- [Tags](#tags)
+- [Rich text editing & copy/paste](#rich-text-editing--copypaste)
+- [Testing with Postman](#testing-with-postman)
 - [Testing approach](#testing-approach)
 - [Code quality](#code-quality)
 - [Deployment](#deployment)
+- [Troubleshooting](#troubleshooting)
 - [Tradeoffs and shortcuts](#tradeoffs-and-shortcuts)
 - [What I'd improve with more time](#what-id-improve-with-more-time)
 - [How AI coding tools were used](#how-ai-coding-tools-were-used)
@@ -75,6 +83,50 @@ Built with Next.js (App Router) + TypeScript + PostgreSQL (Prisma) + Tailwind CS
 | AI provider      | Google Gemini (free tier) via direct `fetch`, with a zero-dependency heuristic fallback |
 | Tests            | Vitest (unit + real HTTP integration tests)                                             |
 | Lint / format    | ESLint (flat config) + Prettier                                                         |
+
+## Project structure
+
+```
+prisma/
+  schema.prisma              # Data model (User, Note, Tag, NoteTag)
+  migrations/                # One folder per applied migration (hand-reviewed SQL)
+
+src/
+  app/
+    login/, signup/          # Auth pages (Server Components)
+    notes/page.tsx           # The main notes screen — fetches initial data server-side,
+                              # decides whether Google sign-in / AI chat should render at all
+    api/
+      auth/                  # signup, signin, signout, me, google, google/callback
+      notes/                 # CRUD, search, per-note tag attach/detach
+      tags/                  # CRUD
+      ai/                    # suggest-tags, chat
+  components/
+    auth/                    # Login/signup forms, Google button
+    notes/                   # Sidebar, note list, note editor, rich text editor,
+                              # AI chat panel, create-tag modal, tag pill
+  lib/
+    auth/                    # Session (JWT) issue/verify, password hashing, Google OAuth
+    ai/                      # Provider abstraction (Gemini + heuristic fallback), chat
+    notes/                   # Query builder, HTML sanitizer, HTML→text, tag colors, embeddings
+    validation/               # Zod schemas (single source of truth for input rules)
+    api/errors.ts            # Shared error → HTTP response mapping
+    db.ts                    # Prisma client singleton
+  proxy.ts                   # Next 16's middleware — redirects signed-out users to /login
+  types/note.ts              # DTOs returned by the API (never the raw Prisma types)
+
+tests/
+  api/                       # Real-HTTP integration tests (auth, notes, tags, AI)
+  global-setup.ts            # Boots a real `next dev` server against a test database
+```
+
+**The rule this follows everywhere:** a Server Component (`page.tsx`) does the
+env-var/permission checks and data fetching, then passes plain booleans/data
+down as props to Client Components — a Client Component itself never reads
+`process.env` directly (it can't; those variables aren't sent to the
+browser). This is exactly the mechanism behind both the Google button and
+the AI chat button being hidden until configured (see
+[Troubleshooting](#troubleshooting) if either isn't showing up for you).
 
 ## Running locally
 
@@ -143,6 +195,38 @@ No secret is ever hardcoded — everything above is read from `process.env`, and
 `.env*` files are git-ignored (`.env.example` is the only one committed, with
 placeholder values).
 
+## How authentication works
+
+Two independent ways to sign in, landing on the exact same session mechanism:
+
+1. **Email/password** — `POST /api/auth/signup` hashes the password with
+   `bcryptjs` (`passwordHash` column) and creates the user. `POST
+/api/auth/signin` re-hashes the supplied password and compares it. To
+   avoid leaking _which_ part was wrong (and to avoid a timing difference
+   between "unknown email" and "wrong password" that could be used to
+   enumerate accounts), signing in with an unknown email still runs a bcrypt
+   comparison against a dummy hash before returning the same generic "Invalid
+   email or password" error either way.
+2. **Google OAuth** — see [Setting up Google sign-in](#setting-up-google-sign-in)
+   below for the full flow. It creates or links a `User` row exactly like
+   email/password does, just via a different code path into the same
+   session issuance.
+
+Both paths end at the same place: [`src/lib/auth/session.ts`](src/lib/auth/session.ts)
+signs a JWT (via `jose`) containing the user's id and email, using
+`AUTH_SECRET`, and sets it as an **`httpOnly`, `Secure` (in production),
+`SameSite=Lax`** cookie named `paged_session` — never `localStorage`, so
+client-side JavaScript (and therefore an XSS payload) can't read the token
+at all.
+
+Every page under `/notes` is protected by [`src/proxy.ts`](src/proxy.ts) —
+Next 16's renamed `middleware.ts`. It runs on the Edge runtime, so it can't
+use `bcryptjs` or hit the database; it does a pure, dependency-free
+signature-and-expiry check on the JWT and redirects to `/login?from=...` if
+that check fails. The API routes re-verify the session server-side on every
+request too (`requireUser()` in [`src/lib/auth/require-user.ts`](src/lib/auth/require-user.ts)) —
+the proxy redirect is a UX nicety, not the actual security boundary.
+
 ## Setting up Google sign-in
 
 Fully optional — the app works with email/password alone, and the button
@@ -170,6 +254,42 @@ no OAuth SDK involved. Signing in with an email that already has a
 password account links `googleId` onto it rather than creating a
 duplicate; a brand-new email creates one, with `passwordHash` left `null`
 since that account never sets a password.
+
+## Setting up the Gemini API key
+
+Also fully optional — the app works with the built-in heuristic fallback if
+you skip this, and the AI tag-suggestion button, the "Meaning" search mode,
+and the **"Ask AI" chat button in the sidebar all stay hidden** until a real
+key is set (see [Troubleshooting](#troubleshooting) if you've set one and
+still don't see them).
+
+1. Go to **[Google AI Studio → API keys](https://aistudio.google.com/apikey)**
+   and sign in with any Google account.
+2. Click **"Create API key"**. Gemini's free tier is generous enough for a
+   demo/interview project — no billing setup required.
+3. Copy the key. A real Gemini key **always starts with `AIza`** — if what
+   you have doesn't look like that, it isn't a Gemini API key (it's likely a
+   different kind of Google token, e.g. an OAuth access/refresh token) and
+   won't authenticate against `generativelanguage.googleapis.com`.
+4. Paste it into `.env`:
+   ```bash
+   GEMINI_API_KEY="AIza...your-real-key..."
+   ```
+5. **Restart `npm run dev`.** This is the step people miss: Next.js reads
+   `.env` once, when the server process starts — editing the file while
+   `next dev` is already running does nothing until you stop and re-run it.
+
+**The key never reaches the browser.** It's read from `process.env` only
+inside server-only modules ([`src/lib/ai/index.ts`](src/lib/ai/index.ts),
+[`src/lib/ai/gemini-provider.ts`](src/lib/ai/gemini-provider.ts),
+[`src/lib/ai/chat.ts`](src/lib/ai/chat.ts) — each imports the `server-only`
+package, which makes it a _build error_ to accidentally import one of them
+from a Client Component). The browser only ever talks to our own routes
+(`/api/ai/suggest-tags`, `/api/ai/chat`, `/api/notes/search`), which attach
+the key server-side when calling Gemini. There is no `NEXT_PUBLIC_*`
+variable for this key, deliberately — that prefix is what Next.js uses to
+decide a variable is safe to ship to the browser, and an AI provider key
+never is.
 
 ## Database schema
 
@@ -249,9 +369,66 @@ Design decisions, and why:
   Sign-in's dummy-hash comparison (see below) already treats a `null` hash
   as "no password set", so this needed no change to the sign-in code path.
 
-## AI-assisted tagging & semantic search
+## API architecture & endpoints
 
-Both features go through one small abstraction, [`AiProvider`](src/lib/ai/types.ts):
+Every route lives under `src/app/api/**/route.ts` (Next.js Route Handlers)
+and follows the same shape:
+
+```
+requireUser()          → 401 if not signed in (re-checked here, not just in proxy.ts)
+zodSchema.parse(body)  → 400 with a specific message if invalid
+ownership check         → 404 (never 403 — see below) if the resource isn't yours
+db call (Prisma)
+return NextResponse.json(...)
+```
+
+wrapped in `try { ... } catch (error) { return handleApiError(error) }`
+([`src/lib/api/errors.ts`](src/lib/api/errors.ts)), so every route returns
+the same JSON error shape (`{ "error": "..." }`) and never leaks a stack
+trace or a raw Prisma error to the client.
+
+**A deliberate choice:** looking up someone else's note/tag returns `404`,
+not `403`. A `403` confirms the resource exists but isn't yours; a `404`
+reveals nothing about whether it exists at all — a slightly stronger
+privacy default for a notes app.
+
+A full request/response example for every route below is in
+[`postman/Paged.postman_collection.json`](postman/Paged.postman_collection.json) —
+see [Testing with Postman](#testing-with-postman).
+
+| Method   | Endpoint                     | Auth | Purpose                                                                      |
+| -------- | ---------------------------- | ---- | ---------------------------------------------------------------------------- |
+| `POST`   | `/api/auth/signup`           | No   | Create an account (`email`, `password`), signs in immediately                |
+| `POST`   | `/api/auth/signin`           | No   | Sign in with email/password                                                  |
+| `POST`   | `/api/auth/signout`          | Yes  | Clear the session cookie                                                     |
+| `GET`    | `/api/auth/me`               | No   | Current session's `{ user }`, or `{ user: null }`                            |
+| `GET`    | `/api/auth/google`           | No   | Redirects to Google's OAuth consent screen                                   |
+| `GET`    | `/api/auth/google/callback`  | No   | OAuth callback — exchanges the code, creates/links the user, signs in        |
+| `GET`    | `/api/notes`                 | Yes  | List your notes — `?q=`, `?tagId=` (repeatable), `?sort=`, `?favoritesOnly=` |
+| `POST`   | `/api/notes`                 | Yes  | Create a note (`title`, `body`, `tagIds?`)                                   |
+| `GET`    | `/api/notes/:id`             | Yes  | Get one note (404 if not yours)                                              |
+| `PATCH`  | `/api/notes/:id`             | Yes  | Update `title`/`body`/`favorite`/`tagIds` (partial)                          |
+| `DELETE` | `/api/notes/:id`             | Yes  | Delete a note                                                                |
+| `GET`    | `/api/notes/search?q=`       | Yes  | Semantic search (falls back to substring — see below)                        |
+| `POST`   | `/api/notes/:id/tags`        | Yes  | Attach an existing tag (`tagId`) to a note                                   |
+| `DELETE` | `/api/notes/:id/tags/:tagId` | Yes  | Detach a tag from a note                                                     |
+| `GET`    | `/api/tags`                  | Yes  | List your tags                                                               |
+| `POST`   | `/api/tags`                  | Yes  | Create a tag (`name`, `color?`) — idempotent by name (upsert)                |
+| `DELETE` | `/api/tags/:id`              | Yes  | Delete a tag (detaches it from all notes first)                              |
+| `POST`   | `/api/ai/suggest-tags`       | Yes  | Suggest 2–3 tags for `{ title, body }`                                       |
+| `POST`   | `/api/ai/chat`               | Yes  | One turn of the Ask AI chat — `{ messages: [{ role, text }] }`               |
+
+"Yes" auth routes require the `paged_session` cookie set by sign-in/sign-up
+(sent automatically by the browser; in Postman, sign in once and the
+collection's cookie jar carries it for the rest of the requests).
+
+## AI-assisted tagging, semantic search & AI chat
+
+Three features, sharing the same "hidden until configured, degrades
+gracefully" philosophy — `GEMINI_API_KEY` unset never breaks the app, it
+just turns off the AI-specific extras:
+
+Both of the first two go through one small abstraction, [`AiProvider`](src/lib/ai/types.ts):
 
 ```ts
 interface AiProvider {
@@ -300,6 +477,99 @@ semantic search ran.
 
 Swapping providers (OpenAI, Anthropic, a local embedding model, ...) means
 writing one more class that implements `AiProvider` — nothing else changes.
+
+**Ask AI (chat).** A general-purpose chat panel pinned near the bottom of
+the sidebar ([`src/components/notes/ai-chat-panel.tsx`](src/components/notes/ai-chat-panel.tsx)),
+Notion-AI-style — it isn't wired to your notes, it's a scratch conversation.
+It doesn't fit the `AiProvider` interface (`suggestTags`/`embed` don't cover
+multi-turn chat, and there's no sensible offline fallback for open-ended
+conversation), so it's a standalone function,
+[`chatWithGemini()`](src/lib/ai/chat.ts), called from `POST /api/ai/chat`.
+Same rules as everything else AI: server-only, key never sent to the
+browser, and the button itself only renders when `isAiConfigured()` is
+true — see [Setting up the Gemini API key](#setting-up-the-gemini-api-key).
+Conversation history is kept in React state only (nothing persisted to the
+database); "New chat" or a page refresh both just reset that state.
+
+## Tags
+
+Tags are many-to-many (`Note ↔ NoteTag ↔ Tag`, see [schema](#database-schema)),
+scoped per-user, and each one carries a name plus a color chosen from a
+fixed 7-color preset ([`src/lib/notes/tag-colors.ts`](src/lib/notes/tag-colors.ts)):
+blue, orange, teal, green, pink, purple, brown.
+
+- **Create a tag two ways**: inline while typing into a note's tag field
+  (defaults to blue), or explicitly via the sidebar's **"+ New Tag"** button
+  ([`CreateTagModal`](src/components/notes/create-tag-modal.tsx)), which
+  lets you pick the color up front.
+- **Creating a tag with a name that already exists for you** doesn't create
+  a duplicate — `POST /api/tags` upserts by `(ownerId, name)` and keeps the
+  tag's existing color rather than overwriting it, so re-typing an existing
+  tag name is always safe.
+- **Filter notes by tag** from the sidebar — clicking multiple tags filters
+  by **OR** (a note matching any selected tag shows up), not AND; this was
+  a deliberate call documented in [`query-builder.ts`](src/lib/notes/query-builder.ts)
+  matching how the tag chips read visually.
+- **Attach/detach on a note** are their own endpoints
+  (`POST/DELETE /api/notes/:id/tags[/:tagId]`), not a single "replace the
+  whole tag list" PATCH — this specifically avoids a race where accepting
+  two AI tag suggestions back-to-back could silently drop one (see
+  [Testing approach](#testing-approach) for how that bug was originally caught).
+- **Deleting a tag** detaches it from every note it was on; it does not
+  delete those notes.
+
+## Rich text editing & copy/paste
+
+The note body is a real rich-text editor
+([`src/components/notes/rich-text-editor.tsx`](src/components/notes/rich-text-editor.tsx),
+built on [TipTap](https://tiptap.dev)/ProseMirror), not a plain `<textarea>`:
+headings, bold/italic/strikethrough, bullet/numbered lists, blockquotes,
+links, and undo/redo, stored as HTML.
+
+**Copy/paste, specifically:**
+
+- **Copying** out of the editor (`Ctrl+C`/`Cmd+C`) is native browser
+  behavior — nothing intercepts it.
+- **Pasting** into the editor (from Word, Google Docs, a webpage, another
+  note) goes through ProseMirror's own schema-constrained HTML parser. This
+  is what actually does the cleanup: any tag or inline style outside the
+  editor's schema (fonts, colors, tracked-changes markup, arbitrary `<div>`s)
+  is discarded automatically, and only the formatting the toolbar itself
+  supports survives — so a paste from Word doesn't inject stray inline
+  styles into your notes.
+- **The server independently re-sanitizes** every note body with
+  [`sanitizeNoteHtml()`](src/lib/notes/sanitize-html.ts) (built on
+  `sanitize-html`) before it's ever written to the database — using the
+  same allowed-tags list as the editor's own schema. This matters because
+  the client-side cleanup above only happens if someone goes through the
+  browser editor; a request sent straight to `POST /api/notes` (Postman,
+  curl, a malicious script) bypasses TipTap entirely, so the allowlist is
+  enforced again, independently, on the server. Disallowed tags (`<script>`,
+  `<style>`, event-handler attributes) and unsafe link schemes
+  (`javascript:`) are stripped either way — this is defense-in-depth, not
+  redundant code.
+- Previews (the note list snippet) and anything sent to the AI (tag
+  suggestion prompts, embeddings) run through
+  [`htmlToText()`](src/lib/notes/html-to-text.ts) instead, so markup never
+  leaks into a preview string or an AI prompt.
+
+## Testing with Postman
+
+A ready-to-import collection is at
+[`postman/Paged.postman_collection.json`](postman/Paged.postman_collection.json),
+covering every endpoint in [API architecture & endpoints](#api-architecture--endpoints)
+with example request bodies and documented expected responses.
+
+1. Open Postman → **Import** → select `postman/Paged.postman_collection.json`.
+2. The collection uses a `{{baseUrl}}` variable (defaults to
+   `http://localhost:3000`) — change it in the collection's **Variables**
+   tab if you're testing a deployed URL instead.
+3. Run **Auth → Sign up** (or **Sign in**) first. Postman's cookie jar
+   automatically stores the `paged_session` cookie that response sets, and
+   every subsequent request in the collection reuses it — no manual header
+   copying needed.
+4. From there, requests can be run individually or top-to-bottom via
+   **Run collection**.
 
 ## Testing approach
 
@@ -388,6 +658,53 @@ This deploys for free on Vercel + Neon + Gemini's free tier.
    ```
 
 5. Visit the deployed URL, sign up, and you're in.
+
+## Troubleshooting
+
+**"I don't see the Google sign-in button" / "I don't see Ask AI":**
+
+Both are rendered conditionally — this is by design (see
+[Project structure](#project-structure)), not a bug, so the fix is almost
+always a `.env` check rather than a code change:
+
+1. Confirm the variable is actually in `.env`, at the project root (not
+   `.env.example`, not `.env.local` unless that's the file you're editing),
+   with **no surrounding quotes issue and no missing `=`**:
+   ```bash
+   # Google button needs BOTH of these set (not empty strings):
+   GOOGLE_CLIENT_ID="..."
+   GOOGLE_CLIENT_SECRET="..."
+   # Ask AI + AI tag suggestions + "Meaning" search need this one:
+   GEMINI_API_KEY="AIza..."
+   ```
+2. **Restart `npm run dev`.** Next.js reads `.env` once at process start —
+   saving the file while the dev server is already running has no effect
+   until you stop (`Ctrl+C`) and run `npm run dev` again. This is the most
+   common cause.
+3. Check the terminal running `npm run dev` for a startup error — a
+   malformed `.env` line (e.g. a value with no `=`, like
+   `GOOGLE_CLIENT_SECRET` on its own line) can silently leave a variable
+   unset rather than erroring loudly.
+4. Verify what Node actually sees (run from the project root, same shell
+   you run `npm run dev` from):
+   ```bash
+   node -e "require('dotenv').config(); console.log(!!process.env.GEMINI_API_KEY, !!process.env.GOOGLE_CLIENT_ID)"
+   ```
+   Both should print `true`. If either prints `false`, the `.env` file
+   itself is the problem, not the app code.
+5. A Gemini key that doesn't start with `AIza` isn't a Gemini API key and
+   will fail Gemini's own auth check even though the button appears fine —
+   see [Setting up the Gemini API key](#setting-up-the-gemini-api-key).
+
+**"CSS/Tailwind styling looks broken (no list bullets, plain headings)":**
+run `npm install` — `@tailwindcss/typography` is a devDependency the rich
+text editor's `prose` classes depend on to generate any CSS at all; it
+needs to be present after pulling a branch that added it.
+
+**Prisma errors mentioning an unknown column/field** (e.g. `tags.color`):
+run `npm run db:migrate` to apply any migrations you haven't run yet, then
+restart `npm run dev` so the generated Prisma Client picks up the schema
+change.
 
 ## Tradeoffs and shortcuts
 
