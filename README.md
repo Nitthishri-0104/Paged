@@ -18,6 +18,7 @@ Built with Next.js (App Router) + TypeScript + PostgreSQL (Prisma) + Tailwind CS
 - [Tech stack](#tech-stack)
 - [Running locally](#running-locally)
 - [Environment variables](#environment-variables)
+- [Setting up Google sign-in](#setting-up-google-sign-in)
 - [Database schema](#database-schema)
 - [AI-assisted tagging & semantic search](#ai-assisted-tagging--semantic-search)
 - [Testing approach](#testing-approach)
@@ -31,7 +32,8 @@ Built with Next.js (App Router) + TypeScript + PostgreSQL (Prisma) + Tailwind CS
 
 - **Auth** — sign up / sign in / sign out, bcrypt-hashed passwords, JWT session in
   an `httpOnly` cookie (not `localStorage`), protected routes via `proxy.ts`
-  (Next's middleware equivalent).
+  (Next's middleware equivalent). Optional "Continue with Google" — hidden
+  automatically unless `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are set.
 - **Notes** — create, edit, delete; private to their owner, enforced server-side on
   every request, not just hidden in the UI.
 - **Tags** — many-to-many via a join table; create, attach, detach; each tag is
@@ -119,10 +121,40 @@ npm run test
 | `GEMINI_API_KEY`         | No       | Enables real AI tag suggestions + embeddings. Omit to use the built-in heuristic fallback — the app is fully functional either way. |
 | `GEMINI_MODEL`           | No       | Overrides the default `gemini-2.5-flash` generation model.                                                                          |
 | `GEMINI_EMBEDDING_MODEL` | No       | Overrides the default `text-embedding-004` embedding model.                                                                         |
+| `GOOGLE_CLIENT_ID`       | No       | Enables the "Continue with Google" button. Omit (with `GOOGLE_CLIENT_SECRET`) to hide it — email/password still works.              |
+| `GOOGLE_CLIENT_SECRET`   | No       | Paired with `GOOGLE_CLIENT_ID`, see [Setting up Google sign-in](#setting-up-google-sign-in).                                        |
 
 No secret is ever hardcoded — everything above is read from `process.env`, and
 `.env*` files are git-ignored (`.env.example` is the only one committed, with
 placeholder values).
+
+## Setting up Google sign-in
+
+Fully optional — the app works with email/password alone, and the button
+only appears once both variables below are set. To enable it:
+
+1. Go to [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials).
+2. Create an **OAuth client ID** of type **Web application**.
+3. Under **Authorized redirect URIs**, add:
+   - `http://localhost:3000/api/auth/google/callback` (local dev)
+   - `https://<your-deployed-domain>/api/auth/google/callback` (production —
+     add this once you know the deployed URL; you can always edit it later)
+4. Copy the generated **Client ID** and **Client secret** into `.env` (or
+   your hosting provider's environment variables) as `GOOGLE_CLIENT_ID` and
+   `GOOGLE_CLIENT_SECRET`.
+5. Restart `npm run dev` (env vars are only read at startup).
+
+How it works: `GET /api/auth/google` redirects to Google's consent screen
+with a random `state` value stashed in a short-lived cookie (CSRF
+protection); `GET /api/auth/google/callback` verifies that `state`,
+exchanges the authorization code for an access token, and fetches the
+account's verified email from Google's userinfo endpoint — both are plain
+server-to-server `fetch` calls (see
+[`src/app/api/auth/google/callback/route.ts`](src/app/api/auth/google/callback/route.ts)),
+no OAuth SDK involved. Signing in with an email that already has a
+password account links `googleId` onto it rather than creating a
+duplicate; a brand-new email creates one, with `passwordHash` left `null`
+since that account never sets a password.
 
 ## Database schema
 
@@ -134,7 +166,8 @@ User ──1───* Note ──*───* Tag        (Note ↔ Tag via the N
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
-  passwordHash String
+  passwordHash String?  // null for a Google-only account
+  googleId     String?  @unique
   notes        Note[]
   tags         Tag[]
 }
@@ -193,6 +226,12 @@ Design decisions, and why:
 - **`cuid()` ids**, not auto-increment integers — they're unguessable, so a
   user can't enumerate other users' note/tag ids by incrementing a number,
   which matters given note/tag ids appear directly in API URLs.
+- **`passwordHash` is nullable, `googleId` links by verified email** — a
+  Google-only account never sets a password, and a user who signs up with a
+  password then later uses "Continue with Google" on the same address gets
+  `googleId` attached to their existing account instead of a second one.
+  Sign-in's dummy-hash comparison (see below) already treats a `null` hash
+  as "no password set", so this needed no change to the sign-in code path.
 
 ## AI-assisted tagging & semantic search
 

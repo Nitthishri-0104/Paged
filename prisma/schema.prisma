@@ -11,10 +11,15 @@ datasource db {
 }
 
 /// A registered user. Owns notes; every note read/write is scoped to its owner.
+/// `passwordHash` is nullable because a user who only ever signs in with
+/// Google never sets a password — `googleId` is set instead. A user can end
+/// up with both if they sign up with a password and later use "Continue
+/// with Google" on the same (verified) email address.
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
-  passwordHash String
+  passwordHash String?
+  googleId     String?  @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
