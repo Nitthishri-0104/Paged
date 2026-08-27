@@ -1,0 +1,79 @@
+// Prisma schema for Paged — a notes app with auth, tagging, and filtering.
+// docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// A registered user. Owns notes; every note read/write is scoped to its owner.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  notes Note[]
+  tags  Tag[]
+
+  @@map("users")
+}
+
+/// A note belongs to exactly one user (one-to-many User -> Note) and can carry
+/// any number of tags via the join table below (many-to-many Note <-> Tag).
+model Note {
+  id        String   @id @default(cuid())
+  title     String
+  body      String   @default("")
+  favorite  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// JSON-encoded embedding vector (array of floats) used for semantic search.
+  /// Stored as text rather than a native vector type so the same schema works
+  /// on plain Postgres, Neon, Supabase, or SQLite in tests without extensions.
+  embedding String?
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  tags NoteTag[]
+
+  @@index([ownerId])
+  @@index([ownerId, createdAt])
+  @@map("notes")
+}
+
+/// A tag is scoped to the user who created it, so two users can each have a
+/// "Work" tag without collision, and one tag can be attached to many notes.
+model Tag {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  notes NoteTag[]
+
+  @@unique([ownerId, name])
+  @@map("tags")
+}
+
+/// Explicit join table for the Note <-> Tag many-to-many relationship.
+model NoteTag {
+  noteId String
+  tagId  String
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, tagId])
+  @@index([tagId])
+  @@map("note_tags")
+}
