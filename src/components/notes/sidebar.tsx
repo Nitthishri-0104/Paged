@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import type { TagDTO } from "@/types/note";
-import { colorForTag } from "@/lib/notes/tag-colors";
+import { colorForTag, type TagColorKey } from "@/lib/notes/tag-colors";
 import { SignOutButton } from "@/components/notes/sign-out-button";
+import { CreateTagModal } from "@/components/notes/create-tag-modal";
+import { AiChatPanel } from "@/components/notes/ai-chat-panel";
 
 export type ViewFilter = "all" | "favorites";
 
@@ -11,20 +14,26 @@ export function Sidebar({
   tags,
   selectedTagIds,
   onToggleTag,
+  onCreateTag,
   view,
   onChangeView,
   totalCount,
   favoriteCount,
+  aiChatEnabled,
 }: {
   userEmail: string;
   tags: TagDTO[];
   selectedTagIds: string[];
   onToggleTag: (tagId: string) => void;
+  onCreateTag: (name: string, color: TagColorKey) => Promise<void>;
   view: ViewFilter;
   onChangeView: (view: ViewFilter) => void;
   totalCount: number;
   favoriteCount: number;
+  aiChatEnabled: boolean;
 }) {
+  const [isCreateTagOpen, setIsCreateTagOpen] = useState(false);
+
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r border-stone-200 bg-stone-100/60 p-4">
       <div className="flex items-center gap-2 px-2 pb-4">
@@ -54,7 +63,7 @@ export function Sidebar({
           <ul className="mt-1 space-y-0.5">
             {tags.map((tag) => {
               const isSelected = selectedTagIds.includes(tag.id);
-              const color = colorForTag(tag.name);
+              const color = colorForTag(tag.name, tag.color);
               return (
                 <li key={tag.id}>
                   <button
@@ -73,12 +82,23 @@ export function Sidebar({
             })}
           </ul>
         )}
+
+        <button
+          type="button"
+          onClick={() => setIsCreateTagOpen(true)}
+          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-stone-300 px-3 py-1.5 text-sm text-stone-500 hover:border-teal-400 hover:text-teal-700"
+        >
+          <PlusIcon /> New Tag
+        </button>
       </div>
 
-      <div className="mt-4 border-t border-stone-200 pt-3">
+      <div className="mt-4 space-y-1 border-t border-stone-200 pt-3">
+        {aiChatEnabled && <AiChatPanel />}
         <p className="truncate px-3 pb-1 text-xs text-stone-400">{userEmail}</p>
         <SignOutButton />
       </div>
+
+      {isCreateTagOpen && <CreateTagModal onClose={() => setIsCreateTagOpen(false)} onCreate={onCreateTag} />}
     </aside>
   );
 }
@@ -129,6 +149,14 @@ function HeartIcon() {
         d="M10 17.25s-6.5-4.06-8.5-8.06C.36 6.66 2 3.75 5 3.75c1.7 0 3.15 1 4 2.25.85-1.25 2.3-2.25 4-2.25 3 0 4.64 2.91 3.5 5.44-2 4-8.5 8.06-8.5 8.06Z"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path d="M10 4v12M4 10h12" strokeLinecap="round" />
     </svg>
   );
 }

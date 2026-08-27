@@ -1,9 +1,10 @@
 import type { NoteDTO } from "@/types/note";
 import { formatRelativeTime } from "@/lib/format";
+import { htmlToText } from "@/lib/notes/html-to-text";
 import { TagPill } from "@/components/notes/tag-pill";
 
 export function NoteCard({ note, isSelected, onSelect }: { note: NoteDTO; isSelected: boolean; onSelect: () => void }) {
-  const preview = note.body.trim().slice(0, 140);
+  const preview = htmlToText(note.body).slice(0, 140);
 
   return (
     <li>
@@ -38,7 +39,7 @@ export function NoteCard({ note, isSelected, onSelect }: { note: NoteDTO; isSele
         {note.tags.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {note.tags.slice(0, 3).map((tag) => (
-              <TagPill key={tag.id} name={tag.name} />
+              <TagPill key={tag.id} name={tag.name} color={tag.color} />
             ))}
             {note.tags.length > 3 && (
               <span className={`text-xs ${isSelected ? "text-teal-100" : "text-stone-400"}`}>

@@ -19,6 +19,44 @@ describe("tags", () => {
     expect(list.tags).toHaveLength(1);
   });
 
+  it("persists the chosen color and keeps it on a duplicate-name upsert", async () => {
+    const { cookie } = await createTestUser("tag-color");
+
+    const created = await authedFetch("/api/tags", cookie, {
+      method: "POST",
+      body: JSON.stringify({ name: "Urgent", color: "pink" }),
+    });
+    const { tag } = (await created.json()) as { tag: { id: string; color: string } };
+    expect(tag.color).toBe("pink");
+
+    // Re-"creating" the same name (e.g. accepting an AI suggestion for a
+    // tag you already colored) must not reset the color back to default.
+    const again = await authedFetch("/api/tags", cookie, {
+      method: "POST",
+      body: JSON.stringify({ name: "Urgent", color: "blue" }),
+    });
+    const { tag: sameTag } = (await again.json()) as { tag: { id: string; color: string } };
+    expect(sameTag.id).toBe(tag.id);
+    expect(sameTag.color).toBe("pink");
+  });
+
+  it("defaults color to blue and rejects an invalid color", async () => {
+    const { cookie } = await createTestUser("tag-color-default");
+
+    const defaulted = await authedFetch("/api/tags", cookie, {
+      method: "POST",
+      body: JSON.stringify({ name: "Plain" }),
+    });
+    const { tag } = (await defaulted.json()) as { tag: { color: string } };
+    expect(tag.color).toBe("blue");
+
+    const invalid = await authedFetch("/api/tags", cookie, {
+      method: "POST",
+      body: JSON.stringify({ name: "Bad", color: "chartreuse" }),
+    });
+    expect(invalid.status).toBe(400);
+  });
+
   it("adds and removes a tag from a note without disturbing other tags", async () => {
     const { cookie } = await createTestUser("tag-attach");
     const noteResponse = await authedFetch("/api/notes", cookie, {

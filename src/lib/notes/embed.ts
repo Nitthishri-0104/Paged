@@ -2,6 +2,7 @@ import "server-only";
 import { after } from "next/server";
 import { db } from "@/lib/db";
 import { embedText } from "@/lib/ai";
+import { htmlToText } from "@/lib/notes/html-to-text";
 
 /**
  * Schedules embedding computation to run after the response has already
@@ -12,7 +13,7 @@ import { embedText } from "@/lib/ai";
  */
 export function scheduleEmbedding(noteId: string, title: string, body: string): void {
   after(async () => {
-    const embedding = await embedText(`${title}\n\n${body}`);
+    const embedding = await embedText(`${title}\n\n${htmlToText(body)}`);
     if (!embedding) return;
 
     await db.note

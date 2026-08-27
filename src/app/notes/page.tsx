@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { noteWithTagsInclude } from "@/lib/notes/access";
 import { serializeNote } from "@/lib/notes/serialize";
 import { NotesApp } from "@/components/notes/notes-app";
+import { isAiConfigured } from "@/lib/ai";
 
 export const metadata: Metadata = { title: "Your Notes — Paged" };
 
@@ -22,9 +23,16 @@ export default async function NotesPage() {
     db.tag.findMany({
       where: { ownerId: session.userId },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: { id: true, name: true, color: true },
     }),
   ]);
 
-  return <NotesApp initialNotes={notes.map(serializeNote)} initialTags={tags} userEmail={session.email} />;
+  return (
+    <NotesApp
+      initialNotes={notes.map(serializeNote)}
+      initialTags={tags}
+      userEmail={session.email}
+      aiChatEnabled={isAiConfigured()}
+    />
+  );
 }

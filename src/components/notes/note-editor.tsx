@@ -4,6 +4,7 @@ import { useState, type KeyboardEvent } from "react";
 import type { NoteDTO, TagDTO } from "@/types/note";
 import { formatRelativeTime } from "@/lib/format";
 import { TagPill } from "@/components/notes/tag-pill";
+import { RichTextEditor } from "@/components/notes/rich-text-editor";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -144,20 +145,15 @@ export function NoteEditor({
         <label htmlFor="note-body" className="sr-only">
           Note
         </label>
-        <textarea
-          id="note-body"
-          value={note.body}
-          onChange={(event) => onEdit({ body: event.target.value })}
-          placeholder="Start writing…"
-          rows={12}
-          className="mt-4 w-full resize-none border-none p-0 text-base leading-relaxed text-stone-700 placeholder-stone-300 focus:outline-none"
-        />
+        <div className="mt-4">
+          <RichTextEditor value={note.body} onChange={(html) => onEdit({ body: html })} />
+        </div>
 
         <div className="mt-8 border-t border-stone-100 pt-4">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-stone-400">Tags</h2>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {note.tags.map((tag) => (
-              <TagPill key={tag.id} name={tag.name} onRemove={() => onRemoveTag(tag.id)} />
+              <TagPill key={tag.id} name={tag.name} color={tag.color} onRemove={() => onRemoveTag(tag.id)} />
             ))}
             <input
               type="text"

@@ -5,6 +5,7 @@ import { updateNoteSchema } from "@/lib/validation/notes";
 import { assertTagsOwnedByUser, findOwnedNoteOrThrow, noteWithTagsInclude } from "@/lib/notes/access";
 import { scheduleEmbedding } from "@/lib/notes/embed";
 import { serializeNote } from "@/lib/notes/serialize";
+import { sanitizeNoteHtml } from "@/lib/notes/sanitize-html";
 import { handleApiError } from "@/lib/api/errors";
 
 interface RouteParams {
@@ -39,7 +40,7 @@ export async function PATCH(request: Request, { params }: RouteParams): Promise<
       where: { id },
       data: {
         ...(input.title !== undefined && { title: input.title }),
-        ...(input.body !== undefined && { body: input.body }),
+        ...(input.body !== undefined && { body: sanitizeNoteHtml(input.body) }),
         ...(input.favorite !== undefined && { favorite: input.favorite }),
         ...(input.tagIds !== undefined && {
           tags: {

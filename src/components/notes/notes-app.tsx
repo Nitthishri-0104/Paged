@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { NoteDTO, SearchMode, TagDTO } from "@/types/note";
 import type { SortOption } from "@/lib/validation/notes";
+import type { TagColorKey } from "@/lib/notes/tag-colors";
 import { apiFetch, ApiClientError } from "@/lib/api-client";
 import { Sidebar, type ViewFilter } from "@/components/notes/sidebar";
 import { NoteList } from "@/components/notes/note-list";
@@ -15,10 +16,12 @@ export function NotesApp({
   initialNotes,
   initialTags,
   userEmail,
+  aiChatEnabled,
 }: {
   initialNotes: NoteDTO[];
   initialTags: TagDTO[];
   userEmail: string;
+  aiChatEnabled: boolean;
 }) {
   const [notes, setNotes] = useState(initialNotes);
   const [tags, setTags] = useState(initialTags);
@@ -208,10 +211,10 @@ export function NotesApp({
     }
   }
 
-  async function ensureTag(name: string): Promise<TagDTO> {
+  async function ensureTag(name: string, color?: TagColorKey): Promise<TagDTO> {
     const { tag } = await apiFetch<{ tag: TagDTO }>("/api/tags", {
       method: "POST",
-      body: JSON.stringify({ name }),
+      body: JSON.stringify(color ? { name, color } : { name }),
     });
     setTags((prev) =>
       prev.some((existing) => existing.id === tag.id)
@@ -219,6 +222,13 @@ export function NotesApp({
         : [...prev, tag].sort((a, b) => a.name.localeCompare(b.name)),
     );
     return tag;
+  }
+
+  // Sidebar's "+ New Tag" creates a standalone tag (no note attached), as
+  // opposed to `addTagToSelectedNote` below which both ensures the tag
+  // exists and attaches it to whichever note is open.
+  async function createStandaloneTag(name: string, color: TagColorKey): Promise<void> {
+    await ensureTag(name, color);
   }
 
   // These call dedicated add/remove-one-tag endpoints (not a PATCH with a
@@ -283,10 +293,12 @@ export function NotesApp({
         tags={tags}
         selectedTagIds={selectedTagIds}
         onToggleTag={toggleTagFilter}
+        onCreateTag={createStandaloneTag}
         view={view}
         onChangeView={setView}
         totalCount={counts.total}
         favoriteCount={counts.favorites}
+        aiChatEnabled={aiChatEnabled}
       />
       <NoteList
         notes={notes}

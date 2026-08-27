@@ -59,6 +59,11 @@ model Note {
 model Tag {
   id        String   @id @default(cuid())
   name      String
+  /// One of the fixed preset keys in `src/lib/notes/tag-colors.ts` (e.g.
+  /// "blue", "orange"), chosen by the user when creating the tag rather
+  /// than derived automatically, so two visually distinct tags never
+  /// collide on the same hash-assigned color.
+  color     String   @default("blue")
   createdAt DateTime @default(now())
 
   ownerId String

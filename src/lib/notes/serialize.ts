@@ -10,7 +10,7 @@ export function serializeNote(note: NoteWithTags): NoteDTO {
     createdAt: note.createdAt.toISOString(),
     updatedAt: note.updatedAt.toISOString(),
     tags: note.tags
-      .map((noteTag) => ({ id: noteTag.tag.id, name: noteTag.tag.name }))
+      .map((noteTag) => ({ id: noteTag.tag.id, name: noteTag.tag.name, color: noteTag.tag.color }))
       .sort((a, b) => a.name.localeCompare(b.name)),
   };
 }
