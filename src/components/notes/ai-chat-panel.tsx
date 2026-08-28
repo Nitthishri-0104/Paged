@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { apiFetch, ApiClientError } from "@/lib/api-client";
 
 interface ChatMessage {
@@ -22,10 +22,32 @@ export function AiChatPanel() {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const toggleButtonRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages, isSending]);
+
+  // Not a modal — the rest of the app stays interactive while this is open —
+  // so focus moves into it on open but isn't trapped, matching the ARIA
+  // authoring practice for a non-modal dialog. Escape still closes it and
+  // returns focus to the toggle button, same as the (modal) tag dialog.
+  useEffect(() => {
+    if (isOpen) inputRef.current?.focus();
+  }, [isOpen]);
+
+  function closePanel() {
+    setIsOpen(false);
+    toggleButtonRef.current?.focus();
+  }
+
+  function handlePanelKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      closePanel();
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -63,6 +85,7 @@ export function AiChatPanel() {
         <div
           role="dialog"
           aria-label="AI chat"
+          onKeyDown={handlePanelKeyDown}
           className="absolute bottom-full left-0 mb-2 flex h-96 w-80 flex-col overflow-hidden rounded-xl border border-stone-200 bg-white shadow-xl"
         >
           <div className="flex items-center justify-between border-b border-stone-100 px-3 py-2">
@@ -75,15 +98,15 @@ export function AiChatPanel() {
                 onClick={startNewChat}
                 title="New chat"
                 aria-label="Start a new chat"
-                className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+                className="rounded-lg p-1.5 text-stone-500 hover:bg-stone-100 hover:text-stone-600"
               >
                 <PlusIcon />
               </button>
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
+                onClick={closePanel}
                 aria-label="Close chat"
-                className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+                className="rounded-lg p-1.5 text-stone-500 hover:bg-stone-100 hover:text-stone-600"
               >
                 <CloseIcon />
               </button>
@@ -92,7 +115,7 @@ export function AiChatPanel() {
 
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-3">
             {messages.length === 0 && (
-              <p className="text-sm text-stone-400">Ask me anything — I&apos;m not connected to your notes yet.</p>
+              <p className="text-sm text-stone-500">Ask me anything — I&apos;m not connected to your notes yet.</p>
             )}
             {messages.map((message, index) => (
               <div
@@ -105,7 +128,7 @@ export function AiChatPanel() {
               </div>
             ))}
             {isSending && (
-              <div className="max-w-[85%] rounded-lg bg-stone-100 px-3 py-2 text-sm text-stone-400" aria-live="polite">
+              <div className="max-w-[85%] rounded-lg bg-stone-100 px-3 py-2 text-sm text-stone-600" aria-live="polite">
                 Thinking…
               </div>
             )}
@@ -123,6 +146,7 @@ export function AiChatPanel() {
             </label>
             <input
               id="ai-chat-input"
+              ref={inputRef}
               type="text"
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
@@ -143,6 +167,7 @@ export function AiChatPanel() {
       )}
 
       <button
+        ref={toggleButtonRef}
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-pressed={isOpen}
