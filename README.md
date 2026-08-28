@@ -187,7 +187,7 @@ npm run test
 | `AUTH_SECRET`            | Yes      | HMAC secret Session JWTs are signed with. Rotating it logs everyone out.                                                            |
 | `GEMINI_API_KEY`         | No       | Enables real AI tag suggestions + embeddings. Omit to use the built-in heuristic fallback — the app is fully functional either way. |
 | `GEMINI_MODEL`           | No       | Overrides the default `gemini-2.5-flash` generation model.                                                                          |
-| `GEMINI_EMBEDDING_MODEL` | No       | Overrides the default `text-embedding-004` embedding model.                                                                         |
+| `GEMINI_EMBEDDING_MODEL` | No       | Overrides the default `gemini-embedding-001` embedding model.                                                                       |
 | `GOOGLE_CLIENT_ID`       | No       | Enables the "Continue with Google" button. Omit (with `GOOGLE_CLIENT_SECRET`) to hide it — email/password still works.              |
 | `GOOGLE_CLIENT_SECRET`   | No       | Paired with `GOOGLE_CLIENT_ID`, see [Setting up Google sign-in](#setting-up-google-sign-in).                                        |
 

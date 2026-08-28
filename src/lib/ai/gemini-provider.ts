@@ -1,7 +1,16 @@
 import type { AiProvider, TagSuggestionInput } from "@/lib/ai/types";
 
 const DEFAULT_MODEL = "gemini-2.5-flash";
-const DEFAULT_EMBEDDING_MODEL = "text-embedding-004";
+// text-embedding-004 was shut down by Google on 2026-01-14; every embed()
+// call against it now 404s ("is not found for API version v1beta"), which
+// looked like "semantic search isn't available" in the UI even with a
+// perfectly valid key. gemini-embedding-001 is the current replacement.
+// Note: it outputs 3072-dim vectors vs. the old model's 768 — a note whose
+// `embedding` column still holds an old vector won't match by cosine
+// similarity against a new query vector (mismatched lengths score 0, see
+// `cosineSimilarity`), so it just falls back to the substring-match union
+// for that note until it's next saved and re-embedded under the new model.
+const DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001";
 const REQUEST_TIMEOUT_MS = 8000;
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
