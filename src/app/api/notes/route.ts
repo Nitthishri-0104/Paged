@@ -6,6 +6,7 @@ import { buildNotesOrderBy, buildNotesWhere } from "@/lib/notes/query-builder";
 import { assertTagsOwnedByUser, noteWithTagsInclude } from "@/lib/notes/access";
 import { scheduleEmbedding } from "@/lib/notes/embed";
 import { serializeNote } from "@/lib/notes/serialize";
+import { sanitizeNoteHtml } from "@/lib/notes/sanitize-html";
 import { handleApiError } from "@/lib/api/errors";
 
 export async function GET(request: Request): Promise<NextResponse> {
@@ -37,7 +38,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const note = await db.note.create({
       data: {
         title: input.title,
-        body: input.body,
+        body: sanitizeNoteHtml(input.body),
         ownerId: user.userId,
         tags: { create: input.tagIds.map((tagId) => ({ tagId })) },
       },

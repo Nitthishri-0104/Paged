@@ -11,10 +11,15 @@ datasource db {
 }
 
 /// A registered user. Owns notes; every note read/write is scoped to its owner.
+/// `passwordHash` is nullable because a user who only ever signs in with
+/// Google never sets a password — `googleId` is set instead. A user can end
+/// up with both if they sign up with a password and later use "Continue
+/// with Google" on the same (verified) email address.
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
-  passwordHash String
+  passwordHash String?
+  googleId     String?  @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -54,6 +59,11 @@ model Note {
 model Tag {
   id        String   @id @default(cuid())
   name      String
+  /// One of the fixed preset keys in `src/lib/notes/tag-colors.ts` (e.g.
+  /// "blue", "orange"), chosen by the user when creating the tag rather
+  /// than derived automatically, so two visually distinct tags never
+  /// collide on the same hash-assigned color.
+  color     String   @default("blue")
   createdAt DateTime @default(now())
 
   ownerId String

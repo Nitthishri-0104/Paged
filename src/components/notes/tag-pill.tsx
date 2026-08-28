@@ -2,14 +2,16 @@ import { colorForTag } from "@/lib/notes/tag-colors";
 
 export function TagPill({
   name,
+  color: colorKey,
   onRemove,
   removeLabel,
 }: {
   name: string;
+  color?: string;
   onRemove?: () => void;
   removeLabel?: string;
 }) {
-  const color = colorForTag(name);
+  const color = colorForTag(name, colorKey);
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${color.bg} ${color.text}`}

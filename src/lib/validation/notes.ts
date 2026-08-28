@@ -6,7 +6,10 @@ export const noteTitleSchema = z
   .min(1, "Title is required")
   .max(200, "Title must be at most 200 characters");
 
-export const noteBodySchema = z.string().max(20_000, "Note is too long");
+// Stored as sanitized HTML (headings/bold/italic/lists/links), which takes
+// more bytes than the same text would as plain text — the cap is raised
+// accordingly from the plain-text-era limit.
+export const noteBodySchema = z.string().max(50_000, "Note is too long");
 
 const tagIdsSchema = z.array(z.string().cuid()).max(20, "A note can have at most 20 tags");
 

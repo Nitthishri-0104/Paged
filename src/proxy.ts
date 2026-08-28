@@ -16,7 +16,8 @@ function isPublicApiRoute(pathname: string): boolean {
   return (
     pathname.startsWith("/api/auth/signup") ||
     pathname.startsWith("/api/auth/signin") ||
-    pathname.startsWith("/api/auth/me")
+    pathname.startsWith("/api/auth/me") ||
+    pathname.startsWith("/api/auth/google")
   );
 }
 

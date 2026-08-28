@@ -18,6 +18,7 @@ Built with Next.js (App Router) + TypeScript + PostgreSQL (Prisma) + Tailwind CS
 - [Tech stack](#tech-stack)
 - [Running locally](#running-locally)
 - [Environment variables](#environment-variables)
+- [Setting up Google sign-in](#setting-up-google-sign-in)
 - [Database schema](#database-schema)
 - [AI-assisted tagging & semantic search](#ai-assisted-tagging--semantic-search)
 - [Testing approach](#testing-approach)
@@ -31,17 +32,32 @@ Built with Next.js (App Router) + TypeScript + PostgreSQL (Prisma) + Tailwind CS
 
 - **Auth** — sign up / sign in / sign out, bcrypt-hashed passwords, JWT session in
   an `httpOnly` cookie (not `localStorage`), protected routes via `proxy.ts`
-  (Next's middleware equivalent).
+  (Next's middleware equivalent). Optional "Continue with Google" — hidden
+  automatically unless `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are set.
 - **Notes** — create, edit, delete; private to their owner, enforced server-side on
-  every request, not just hidden in the UI.
-- **Tags** — many-to-many via a join table; create, attach, detach; each tag is
-  scoped to its owner.
+  every request, not just hidden in the UI. The body is a rich text editor
+  (TipTap): headings, bold/italic/strikethrough, bullet/numbered lists,
+  blockquotes, and links, with undo/redo. Pasting from another app or site
+  goes through the editor's schema-constrained HTML parsing, which strips
+  foreign styling (fonts, inline styles, tracking spans) down to the same
+  formatting the toolbar supports; the server independently re-sanitizes
+  the HTML before it's stored, so the allowed-tags list is enforced even
+  for a request that bypasses the browser editor entirely.
+- **Tags** — many-to-many via a join table; each tag has a name and a
+  user-chosen color (from a fixed 7-color preset), created either inline
+  while editing a note or from the sidebar's "+ New Tag" button; persists
+  across refresh, filterable from the sidebar.
 - **Filtering & sorting** — filter by one or more tags (OR semantics), search by
   title, sort by creation date (newest/oldest first).
 - **AI tag suggestions** — suggests 2–3 tags per note that you accept or reject.
 - **Semantic search** — a "Meaning" search mode that ranks notes by embedding
   similarity instead of literal substring match, with an automatic fallback to
   substring search when no AI provider is configured or the call fails.
+- **AI chat** — a simple Notion-AI-style chat panel pinned near the bottom of
+  the sidebar (Gemini-backed, key stays server-side). Not connected to your
+  notes — it's a general-purpose scratch chat, not a notes assistant.
+  In-memory only (no history persisted); hidden entirely when no AI
+  provider is configured, same pattern as Google sign-in.
 - **Accessible UI** — semantic landmarks, labelled form controls, `aria-pressed`/
   `aria-selected` on toggles, visible focus rings, keyboard-operable throughout.
 
@@ -54,7 +70,8 @@ Built with Next.js (App Router) + TypeScript + PostgreSQL (Prisma) + Tailwind CS
 | ORM / migrations | Prisma                                                                                  |
 | Auth             | Hand-rolled: bcryptjs + `jose` (JWT) + `httpOnly` cookies                               |
 | Validation       | Zod                                                                                     |
-| Styling          | Tailwind CSS v4                                                                         |
+| Styling          | Tailwind CSS v4 (+ `@tailwindcss/typography` for the note editor)                       |
+| Rich text        | TipTap (ProseMirror), sanitized server-side with `sanitize-html`                        |
 | AI provider      | Google Gemini (free tier) via direct `fetch`, with a zero-dependency heuristic fallback |
 | Tests            | Vitest (unit + real HTTP integration tests)                                             |
 | Lint / format    | ESLint (flat config) + Prettier                                                         |
@@ -119,10 +136,40 @@ npm run test
 | `GEMINI_API_KEY`         | No       | Enables real AI tag suggestions + embeddings. Omit to use the built-in heuristic fallback — the app is fully functional either way. |
 | `GEMINI_MODEL`           | No       | Overrides the default `gemini-2.5-flash` generation model.                                                                          |
 | `GEMINI_EMBEDDING_MODEL` | No       | Overrides the default `text-embedding-004` embedding model.                                                                         |
+| `GOOGLE_CLIENT_ID`       | No       | Enables the "Continue with Google" button. Omit (with `GOOGLE_CLIENT_SECRET`) to hide it — email/password still works.              |
+| `GOOGLE_CLIENT_SECRET`   | No       | Paired with `GOOGLE_CLIENT_ID`, see [Setting up Google sign-in](#setting-up-google-sign-in).                                        |
 
 No secret is ever hardcoded — everything above is read from `process.env`, and
 `.env*` files are git-ignored (`.env.example` is the only one committed, with
 placeholder values).
+
+## Setting up Google sign-in
+
+Fully optional — the app works with email/password alone, and the button
+only appears once both variables below are set. To enable it:
+
+1. Go to [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials).
+2. Create an **OAuth client ID** of type **Web application**.
+3. Under **Authorized redirect URIs**, add:
+   - `http://localhost:3000/api/auth/google/callback` (local dev)
+   - `https://<your-deployed-domain>/api/auth/google/callback` (production —
+     add this once you know the deployed URL; you can always edit it later)
+4. Copy the generated **Client ID** and **Client secret** into `.env` (or
+   your hosting provider's environment variables) as `GOOGLE_CLIENT_ID` and
+   `GOOGLE_CLIENT_SECRET`.
+5. Restart `npm run dev` (env vars are only read at startup).
+
+How it works: `GET /api/auth/google` redirects to Google's consent screen
+with a random `state` value stashed in a short-lived cookie (CSRF
+protection); `GET /api/auth/google/callback` verifies that `state`,
+exchanges the authorization code for an access token, and fetches the
+account's verified email from Google's userinfo endpoint — both are plain
+server-to-server `fetch` calls (see
+[`src/app/api/auth/google/callback/route.ts`](src/app/api/auth/google/callback/route.ts)),
+no OAuth SDK involved. Signing in with an email that already has a
+password account links `googleId` onto it rather than creating a
+duplicate; a brand-new email creates one, with `passwordHash` left `null`
+since that account never sets a password.
 
 ## Database schema
 
@@ -134,7 +181,8 @@ User ──1───* Note ──*───* Tag        (Note ↔ Tag via the N
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
-  passwordHash String
+  passwordHash String?  // null for a Google-only account
+  googleId     String?  @unique
   notes        Note[]
   tags         Tag[]
 }
@@ -153,6 +201,7 @@ model Note {
 model Tag {
   id      String    @id @default(cuid())
   name    String
+  color   String    @default("blue") // one of a fixed 7-key preset, user-chosen
   ownerId String
   owner   User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   notes   NoteTag[]
@@ -193,6 +242,12 @@ Design decisions, and why:
 - **`cuid()` ids**, not auto-increment integers — they're unguessable, so a
   user can't enumerate other users' note/tag ids by incrementing a number,
   which matters given note/tag ids appear directly in API URLs.
+- **`passwordHash` is nullable, `googleId` links by verified email** — a
+  Google-only account never sets a password, and a user who signs up with a
+  password then later uses "Continue with Google" on the same address gets
+  `googleId` attached to their existing account instead of a second one.
+  Sign-in's dummy-hash comparison (see below) already treats a `null` hash
+  as "no password set", so this needed no change to the sign-in code path.
 
 ## AI-assisted tagging & semantic search
 
@@ -347,6 +402,17 @@ Called out here explicitly rather than left for someone to discover:
 - **Semantic search re-embeds the query on every request** rather than
   caching recent query embeddings — fine at personal-notes scale, wasteful
   at higher volume.
+- **The substring-search fallback matches against stored HTML**, not
+  extracted plain text (unlike AI tag suggestion / embeddings, which do use
+  `htmlToText` first). A search term that happens to span a tag boundary
+  (rare in practice) could miss a match. Fixing it means running the same
+  `htmlToText` pass at query time, deferred since it's a narrow edge case.
+- **The rich text editor's link button uses `window.prompt()`** for the URL
+  rather than an inline popover — accessible and functional, but not
+  visually consistent with the rest of the UI.
+- **AI chat has no persistence** — it's an in-memory scratch conversation
+  per browser tab, intentionally (see Features); a real assistant feature
+  would need a `ChatMessage` table and its own ownership checks.
 - **`window.confirm()` for delete confirmation** instead of a custom modal —
   fully accessible (it's a native, keyboard-operable browser dialog) but not
   visually consistent with the rest of the UI. A custom dialog was cut for

@@ -10,7 +10,7 @@ export async function GET(): Promise<NextResponse> {
     const tags = await db.tag.findMany({
       where: { ownerId: user.userId },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: { id: true, name: true, color: true },
     });
     return NextResponse.json({ tags });
   } catch (error) {
@@ -22,16 +22,19 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     const user = await requireUser();
     const body: unknown = await request.json().catch(() => null);
-    const { name } = createTagSchema.parse(body);
+    const { name, color } = createTagSchema.parse(body);
 
     // Upsert rather than insert-or-409: both the "add a tag" form and the
     // "accept an AI-suggested tag" flow just want "make sure this tag
     // exists and give me its id" — a duplicate name isn't an error there.
+    // `update: {}` deliberately leaves an existing tag's color untouched —
+    // accepting an AI suggestion for a tag you already colored shouldn't
+    // silently reset it back to the default.
     const tag = await db.tag.upsert({
       where: { ownerId_name: { ownerId: user.userId, name } },
       update: {},
-      create: { name, ownerId: user.userId },
-      select: { id: true, name: true },
+      create: { name, color, ownerId: user.userId },
+      select: { id: true, name: true, color: true },
     });
     return NextResponse.json({ tag }, { status: 201 });
   } catch (error) {
