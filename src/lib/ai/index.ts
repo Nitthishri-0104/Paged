@@ -31,24 +31,6 @@ export async function suggestTags(input: TagSuggestionInput): Promise<string[]> 
   }
 }
 
-/**
- * Computes an embedding for semantic search. Returns null when no provider
- * is configured or the call fails — callers must treat null as "semantic
- * search unavailable right now" and fall back to substring search rather
- * than erroring out.
- */
-export async function embedText(text: string): Promise<number[] | null> {
-  const provider = getConfiguredProvider();
-  if (!provider) return null;
-
-  try {
-    return await provider.embed(text);
-  } catch (error) {
-    console.error(`[ai] "${provider.name}" failed to embed text:`, error);
-    return null;
-  }
-}
-
 export function isAiConfigured(): boolean {
   return Boolean(process.env.GEMINI_API_KEY);
 }

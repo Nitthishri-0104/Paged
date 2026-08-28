@@ -12,8 +12,8 @@ const ENTITY_MAP: Record<string, string> = {
 /**
  * Strips the note editor's rich-text HTML down to plain text — used
  * anywhere HTML markup shouldn't leak through: the note list preview
- * snippet, and the text fed to AI tag suggestion / embeddings (which
- * should reason about the note's words, not its markup).
+ * snippet, and the text fed to AI tag suggestion (which should reason
+ * about the note's words, not its markup).
  */
 export function htmlToText(html: string): string {
   return html

@@ -27,6 +27,13 @@ export function buildNotesWhere(ownerId: string, query: NotesQuery): Prisma.Note
     where.favorite = true;
   }
 
+  if (query.createdFrom || query.createdTo) {
+    where.createdAt = {
+      ...(query.createdFrom && { gte: new Date(query.createdFrom) }),
+      ...(query.createdTo && { lte: new Date(query.createdTo) }),
+    };
+  }
+
   return where;
 }
 

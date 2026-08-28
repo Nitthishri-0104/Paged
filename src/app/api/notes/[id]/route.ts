@@ -3,7 +3,6 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/require-user";
 import { updateNoteSchema } from "@/lib/validation/notes";
 import { assertTagsOwnedByUser, findOwnedNoteOrThrow, noteWithTagsInclude } from "@/lib/notes/access";
-import { scheduleEmbedding } from "@/lib/notes/embed";
 import { serializeNote } from "@/lib/notes/serialize";
 import { sanitizeNoteHtml } from "@/lib/notes/sanitize-html";
 import { handleApiError } from "@/lib/api/errors";
@@ -51,10 +50,6 @@ export async function PATCH(request: Request, { params }: RouteParams): Promise<
       },
       include: noteWithTagsInclude,
     });
-
-    if (input.title !== undefined || input.body !== undefined) {
-      scheduleEmbedding(note.id, note.title, note.body);
-    }
 
     return NextResponse.json({ note: serializeNote(note) });
   } catch (error) {

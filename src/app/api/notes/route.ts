@@ -4,7 +4,6 @@ import { requireUser } from "@/lib/auth/require-user";
 import { createNoteSchema, parseNotesQuery } from "@/lib/validation/notes";
 import { buildNotesOrderBy, buildNotesWhere } from "@/lib/notes/query-builder";
 import { assertTagsOwnedByUser, noteWithTagsInclude } from "@/lib/notes/access";
-import { scheduleEmbedding } from "@/lib/notes/embed";
 import { serializeNote } from "@/lib/notes/serialize";
 import { sanitizeNoteHtml } from "@/lib/notes/sanitize-html";
 import { handleApiError } from "@/lib/api/errors";
@@ -44,8 +43,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       },
       include: noteWithTagsInclude,
     });
-
-    scheduleEmbedding(note.id, note.title, note.body);
 
     return NextResponse.json({ note: serializeNote(note) }, { status: 201 });
   } catch (error) {

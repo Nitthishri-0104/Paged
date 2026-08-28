@@ -108,10 +108,22 @@
                   "description": "Repeatable — one or more tag ids, OR semantics"
                 },
                 { "key": "sort", "value": "newest", "description": "newest | oldest" },
-                { "key": "favoritesOnly", "value": "true", "disabled": true }
+                { "key": "favoritesOnly", "value": "true", "disabled": true },
+                {
+                  "key": "createdFrom",
+                  "value": "2026-08-01T00:00:00.000Z",
+                  "disabled": true,
+                  "description": "ISO instant (inclusive lower bound on createdAt) — an absolute timestamp, not a bare date, so timezone is never ambiguous"
+                },
+                {
+                  "key": "createdTo",
+                  "value": "2026-08-31T23:59:59.999Z",
+                  "disabled": true,
+                  "description": "ISO instant (inclusive upper bound on createdAt); either bound may be given alone for an open-ended range"
+                }
               ]
             },
-            "description": "Lists the signed-in user's notes, newest first by default. Requires auth.\n\nExpected response — 200 OK:\n```json\n{\n  \"notes\": [\n    {\n      \"id\": \"clx...\",\n      \"title\": \"Wedding planning\",\n      \"body\": \"<p>Book the venue</p>\",\n      \"favorite\": false,\n      \"createdAt\": \"2026-08-27T12:00:00.000Z\",\n      \"updatedAt\": \"2026-08-27T12:00:00.000Z\",\n      \"tags\": [{ \"id\": \"clx...\", \"name\": \"Wedding\", \"color\": \"blue\" }]\n    }\n  ]\n}\n```"
+            "description": "Lists the signed-in user's notes, newest first by default. Requires auth. `createdFrom`/`createdTo` filter by creation date and combine (AND) with `q` and `tagId` — this is the same query the notes list's search box, tag chips, and date-filter popover all build together.\n\nExpected response — 200 OK:\n```json\n{\n  \"notes\": [\n    {\n      \"id\": \"clx...\",\n      \"title\": \"Wedding planning\",\n      \"body\": \"<p>Book the venue</p>\",\n      \"favorite\": false,\n      \"createdAt\": \"2026-08-27T12:00:00.000Z\",\n      \"updatedAt\": \"2026-08-27T12:00:00.000Z\",\n      \"tags\": [{ \"id\": \"clx...\", \"name\": \"Wedding\", \"color\": \"blue\" }]\n    }\n  ]\n}\n```\n\nErrors:\n- 400 if `createdFrom` is after `createdTo`"
           },
           "response": []
         },
@@ -171,21 +183,6 @@
               "path": ["api", "notes", "{{noteId}}"]
             },
             "description": "Partially updates a note — any of `title`, `body`, `favorite`, `tagIds` (all optional, at least one required). Used for both autosave-while-typing and one-off actions like toggling favorite.\n\nExpected response — 200 OK: `{ \"note\": { ...updated fields... } }`\n\nErrors:\n- 400 if no fields are provided, or a `tagIds` entry isn't one of your own tags\n- 404 if the note isn't yours"
-          },
-          "response": []
-        },
-        {
-          "name": "Semantic search notes",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/notes/search?q=things to buy",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "notes", "search"],
-              "query": [{ "key": "q", "value": "things to buy" }]
-            },
-            "description": "\"Search by meaning\" — embeds the query and ranks notes by cosine similarity to each note's precomputed embedding, unioned with any plain substring matches. Falls back to pure substring search (and reports that via `mode`) when `GEMINI_API_KEY` isn't configured or the embedding call fails.\n\nExpected response — 200 OK:\n```json\n{ \"notes\": [ { ... } ], \"mode\": \"semantic\" }\n```\nor, without AI configured:\n```json\n{ \"notes\": [ { ... } ], \"mode\": \"substring\" }\n```\n\nErrors:\n- 400 if `q` is missing/empty"
           },
           "response": []
         },

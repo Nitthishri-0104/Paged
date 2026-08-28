@@ -19,7 +19,7 @@ interface GenerateContentResponse {
 /**
  * A minimal multi-turn chat call to Gemini — plain `fetch`, no SDK, same
  * style as `GeminiProvider`. Chat doesn't fit the per-note `AiProvider`
- * shape (`suggestTags`/`embed`), and there's no meaningful offline fallback
+ * shape (`suggestTags`), and there's no meaningful offline fallback
  * for open-ended conversation, so this is a standalone function: the chat
  * UI is hidden entirely (see `isAiConfigured()`) rather than shown with a
  * fake response when no key is set.

@@ -17,5 +17,3 @@ export interface NoteDTO {
   updatedAt: string;
   tags: TagDTO[];
 }
-
-export type SearchMode = "substring" | "semantic";

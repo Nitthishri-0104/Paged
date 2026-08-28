@@ -28,6 +28,32 @@ describe("buildNotesWhere", () => {
     expect(buildNotesWhere("user-1", { ...baseQuery, favoritesOnly: true }).favorite).toBe(true);
     expect(buildNotesWhere("user-1", baseQuery).favorite).toBeUndefined();
   });
+
+  it("adds a createdAt range when both createdFrom and createdTo are set", () => {
+    const where = buildNotesWhere("user-1", {
+      ...baseQuery,
+      createdFrom: "2026-08-01T00:00:00.000Z",
+      createdTo: "2026-08-15T23:59:59.999Z",
+    });
+    expect(where.createdAt).toEqual({
+      gte: new Date("2026-08-01T00:00:00.000Z"),
+      lte: new Date("2026-08-15T23:59:59.999Z"),
+    });
+  });
+
+  it("supports an open-ended createdAt range (only createdFrom)", () => {
+    const where = buildNotesWhere("user-1", { ...baseQuery, createdFrom: "2026-08-01T00:00:00.000Z" });
+    expect(where.createdAt).toEqual({ gte: new Date("2026-08-01T00:00:00.000Z") });
+  });
+
+  it("supports an open-ended createdAt range (only createdTo)", () => {
+    const where = buildNotesWhere("user-1", { ...baseQuery, createdTo: "2026-08-15T23:59:59.999Z" });
+    expect(where.createdAt).toEqual({ lte: new Date("2026-08-15T23:59:59.999Z") });
+  });
+
+  it("omits createdAt entirely when neither bound is set", () => {
+    expect(buildNotesWhere("user-1", baseQuery).createdAt).toBeUndefined();
+  });
 });
 
 describe("buildNotesOrderBy", () => {
