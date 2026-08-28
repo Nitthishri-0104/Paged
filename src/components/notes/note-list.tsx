@@ -1,4 +1,4 @@
-import type { NoteDTO, SearchMode } from "@/types/note";
+import type { NoteDTO } from "@/types/note";
 import { NoteCard } from "@/components/notes/note-card";
 import type { SortOption } from "@/lib/validation/notes";
 
@@ -10,13 +10,10 @@ export function NoteList({
   isCreating,
   searchQuery,
   onSearchQueryChange,
-  searchMode,
-  onSearchModeChange,
   sort,
   onSortChange,
   isLoading,
   error,
-  resolvedSearchMode,
 }: {
   notes: NoteDTO[];
   selectedNoteId: string | null;
@@ -25,13 +22,10 @@ export function NoteList({
   isCreating: boolean;
   searchQuery: string;
   onSearchQueryChange: (value: string) => void;
-  searchMode: SearchMode;
-  onSearchModeChange: (mode: SearchMode) => void;
   sort: SortOption;
   onSortChange: (sort: SortOption) => void;
   isLoading: boolean;
   error: string | null;
-  resolvedSearchMode: SearchMode | null;
 }) {
   return (
     <section className="flex h-full w-80 shrink-0 flex-col border-r border-stone-200 bg-white" aria-label="Notes list">
@@ -66,30 +60,7 @@ export function NoteList({
         />
       </div>
 
-      <div className="flex items-center justify-between gap-2 px-4 pb-3">
-        <div role="group" aria-label="Search mode" className="flex rounded-lg bg-stone-100 p-0.5 text-sm">
-          <button
-            type="button"
-            aria-pressed={searchMode === "substring"}
-            onClick={() => onSearchModeChange("substring")}
-            className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
-              searchMode === "substring" ? "bg-white text-stone-900 shadow-sm" : "text-stone-600"
-            }`}
-          >
-            Words
-          </button>
-          <button
-            type="button"
-            aria-pressed={searchMode === "semantic"}
-            onClick={() => onSearchModeChange("semantic")}
-            className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
-              searchMode === "semantic" ? "bg-white text-stone-900 shadow-sm" : "text-stone-600"
-            }`}
-          >
-            Meaning
-          </button>
-        </div>
-
+      <div className="flex items-center justify-end gap-2 px-4 pb-3">
         <label className="flex items-center gap-1 text-xs text-stone-500">
           <span className="sr-only">Sort by</span>
           <select
@@ -102,12 +73,6 @@ export function NoteList({
           </select>
         </label>
       </div>
-
-      {searchMode === "semantic" && searchQuery && resolvedSearchMode === "substring" && (
-        <p className="mx-4 mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          Semantic search isn&apos;t available right now, showing text matches instead.
-        </p>
-      )}
 
       <div className="flex-1 overflow-y-auto px-4 pb-4">
         {error && (

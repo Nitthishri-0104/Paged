@@ -39,11 +39,6 @@ model Note {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /// JSON-encoded embedding vector (array of floats) used for semantic search.
-  /// Stored as text rather than a native vector type so the same schema works
-  /// on plain Postgres, Neon, Supabase, or SQLite in tests without extensions.
-  embedding String?
-
   ownerId String
   owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 

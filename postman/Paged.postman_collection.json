@@ -175,21 +175,6 @@
           "response": []
         },
         {
-          "name": "Semantic search notes",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/notes/search?q=things to buy",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "notes", "search"],
-              "query": [{ "key": "q", "value": "things to buy" }]
-            },
-            "description": "\"Search by meaning\" — embeds the query and ranks notes by cosine similarity to each note's precomputed embedding, unioned with any plain substring matches. Falls back to pure substring search (and reports that via `mode`) when `GEMINI_API_KEY` isn't configured or the embedding call fails.\n\nExpected response — 200 OK:\n```json\n{ \"notes\": [ { ... } ], \"mode\": \"semantic\" }\n```\nor, without AI configured:\n```json\n{ \"notes\": [ { ... } ], \"mode\": \"substring\" }\n```\n\nErrors:\n- 400 if `q` is missing/empty"
-          },
-          "response": []
-        },
-        {
           "name": "Add tag to note",
           "request": {
             "method": "POST",

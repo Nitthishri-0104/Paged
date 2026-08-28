@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { NoteDTO, SearchMode, TagDTO } from "@/types/note";
+import type { NoteDTO, TagDTO } from "@/types/note";
 import type { SortOption } from "@/lib/validation/notes";
 import type { TagColorKey } from "@/lib/notes/tag-colors";
 import { apiFetch, ApiClientError } from "@/lib/api-client";
@@ -52,8 +52,6 @@ export function NotesApp({
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [searchMode, setSearchMode] = useState<SearchMode>("substring");
-  const [resolvedSearchMode, setResolvedSearchMode] = useState<SearchMode | null>(null);
   const [sort, setSort] = useState<SortOption>("newest");
 
   const [isListLoading, setIsListLoading] = useState(false);
@@ -107,26 +105,16 @@ export function NotesApp({
       setIsListLoading(true);
       setListError(null);
       try {
-        if (searchMode === "semantic" && debouncedQuery) {
-          const data = await apiFetch<{ notes: NoteDTO[]; mode: SearchMode }>(
-            `/api/notes/search?q=${encodeURIComponent(debouncedQuery)}`,
-            { signal: controller.signal },
-          );
-          setNotes(data.notes);
-          setResolvedSearchMode(data.mode);
-        } else {
-          const params = new URLSearchParams();
-          if (debouncedQuery) params.set("q", debouncedQuery);
-          for (const tagId of selectedTagIds) params.append("tagId", tagId);
-          params.set("sort", sort);
-          if (view === "favorites") params.set("favoritesOnly", "true");
+        const params = new URLSearchParams();
+        if (debouncedQuery) params.set("q", debouncedQuery);
+        for (const tagId of selectedTagIds) params.append("tagId", tagId);
+        params.set("sort", sort);
+        if (view === "favorites") params.set("favoritesOnly", "true");
 
-          const data = await apiFetch<{ notes: NoteDTO[] }>(`/api/notes?${params.toString()}`, {
-            signal: controller.signal,
-          });
-          setNotes(data.notes);
-          setResolvedSearchMode(null);
-        }
+        const data = await apiFetch<{ notes: NoteDTO[] }>(`/api/notes?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        setNotes(data.notes);
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setListError(error instanceof ApiClientError ? error.message : "Failed to load notes");
@@ -137,7 +125,7 @@ export function NotesApp({
 
     void load();
     return () => controller.abort();
-  }, [debouncedQuery, selectedTagIds, sort, view, searchMode]);
+  }, [debouncedQuery, selectedTagIds, sort, view]);
 
   const selectedNote = useMemo(() => notes.find((note) => note.id === selectedNoteId) ?? null, [notes, selectedNoteId]);
 
@@ -309,13 +297,10 @@ export function NotesApp({
           isCreating={isCreating}
           searchQuery={searchQuery}
           onSearchQueryChange={setSearchQuery}
-          searchMode={searchMode}
-          onSearchModeChange={setSearchMode}
           sort={sort}
           onSortChange={setSort}
           isLoading={isListLoading}
           error={listError}
-          resolvedSearchMode={resolvedSearchMode}
         />
         <NoteEditor
           note={selectedNote}

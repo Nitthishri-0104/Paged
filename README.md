@@ -2,7 +2,7 @@
 
 A full-stack notes app: email/password auth with JWT sessions, private notes owned
 per-user, many-to-many tagging, filtering/sorting/search, and an AI-assisted layer
-(tag suggestions + semantic "search by meaning") with a graceful offline fallback.
+(tag suggestions + a chat sidebar) with a graceful offline fallback.
 
 Built with Next.js (App Router) + TypeScript + PostgreSQL (Prisma) + Tailwind CSS.
 
@@ -24,7 +24,7 @@ Built with Next.js (App Router) + TypeScript + PostgreSQL (Prisma) + Tailwind CS
 - [Setting up the Gemini API key](#setting-up-the-gemini-api-key)
 - [Database schema](#database-schema)
 - [API architecture & endpoints](#api-architecture--endpoints)
-- [AI-assisted tagging, semantic search & AI chat](#ai-assisted-tagging-semantic-search--ai-chat)
+- [AI-assisted tagging & chat](#ai-assisted-tagging--chat)
 - [Tags](#tags)
 - [Rich text editing & copy/paste](#rich-text-editing--copypaste)
 - [Testing with Postman](#testing-with-postman)
@@ -58,9 +58,6 @@ Built with Next.js (App Router) + TypeScript + PostgreSQL (Prisma) + Tailwind CS
 - **Filtering & sorting** — filter by one or more tags (OR semantics), search by
   title, sort by creation date (newest/oldest first).
 - **AI tag suggestions** — suggests 2–3 tags per note that you accept or reject.
-- **Semantic search** — a "Meaning" search mode that ranks notes by embedding
-  similarity instead of literal substring match, with an automatic fallback to
-  substring search when no AI provider is configured or the call fails.
 - **AI chat** — a simple Notion-AI-style chat panel pinned near the bottom of
   the sidebar (Gemini-backed, key stays server-side). Not connected to your
   notes — it's a general-purpose scratch chat, not a notes assistant.
@@ -98,7 +95,7 @@ src/
                               # decides whether Google sign-in / AI chat should render at all
     api/
       auth/                  # signup, signin, signout, me, google, google/callback
-      notes/                 # CRUD, search, per-note tag attach/detach
+      notes/                 # CRUD, per-note tag attach/detach
       tags/                  # CRUD
       ai/                    # suggest-tags, chat
   components/
@@ -108,7 +105,7 @@ src/
   lib/
     auth/                    # Session (JWT) issue/verify, password hashing, Google OAuth
     ai/                      # Provider abstraction (Gemini + heuristic fallback), chat
-    notes/                   # Query builder, HTML sanitizer, HTML→text, tag colors, embeddings
+    notes/                   # Query builder, HTML sanitizer, HTML→text, tag colors
     validation/               # Zod schemas (single source of truth for input rules)
     api/errors.ts            # Shared error → HTTP response mapping
     db.ts                    # Prisma client singleton
@@ -181,15 +178,14 @@ npm run test
 
 ## Environment variables
 
-| Variable                 | Required | Purpose                                                                                                                             |
-| ------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`           | Yes      | PostgreSQL connection string                                                                                                        |
-| `AUTH_SECRET`            | Yes      | HMAC secret Session JWTs are signed with. Rotating it logs everyone out.                                                            |
-| `GEMINI_API_KEY`         | No       | Enables real AI tag suggestions + embeddings. Omit to use the built-in heuristic fallback — the app is fully functional either way. |
-| `GEMINI_MODEL`           | No       | Overrides the default `gemini-3.6-flash` generation model.                                                                          |
-| `GEMINI_EMBEDDING_MODEL` | No       | Overrides the default `gemini-embedding-001` embedding model.                                                                       |
-| `GOOGLE_CLIENT_ID`       | No       | Enables the "Continue with Google" button. Omit (with `GOOGLE_CLIENT_SECRET`) to hide it — email/password still works.              |
-| `GOOGLE_CLIENT_SECRET`   | No       | Paired with `GOOGLE_CLIENT_ID`, see [Setting up Google sign-in](#setting-up-google-sign-in).                                        |
+| Variable               | Required | Purpose                                                                                                                                                                        |
+| ---------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`         | Yes      | PostgreSQL connection string                                                                                                                                                   |
+| `AUTH_SECRET`          | Yes      | HMAC secret Session JWTs are signed with. Rotating it logs everyone out.                                                                                                       |
+| `GEMINI_API_KEY`       | No       | Enables real AI tag suggestions and the "Ask AI" chat. Omit to use the built-in heuristic for tags — the app is fully functional either way, just with the chat button hidden. |
+| `GEMINI_MODEL`         | No       | Overrides the default `gemini-3.6-flash` generation model.                                                                                                                     |
+| `GOOGLE_CLIENT_ID`     | No       | Enables the "Continue with Google" button. Omit (with `GOOGLE_CLIENT_SECRET`) to hide it — email/password still works.                                                         |
+| `GOOGLE_CLIENT_SECRET` | No       | Paired with `GOOGLE_CLIENT_ID`, see [Setting up Google sign-in](#setting-up-google-sign-in).                                                                                   |
 
 No secret is ever hardcoded — everything above is read from `process.env`, and
 `.env*` files are git-ignored (`.env.example` is the only one committed, with
@@ -258,19 +254,22 @@ since that account never sets a password.
 ## Setting up the Gemini API key
 
 Also fully optional — the app works with the built-in heuristic fallback if
-you skip this, and the AI tag-suggestion button, the "Meaning" search mode,
-and the **"Ask AI" chat button in the sidebar all stay hidden** until a real
-key is set (see [Troubleshooting](#troubleshooting) if you've set one and
-still don't see them).
+you skip this, and the AI tag-suggestion button and the **"Ask AI" chat
+button in the sidebar both stay hidden** until a real key is set (see
+[Troubleshooting](#troubleshooting) if you've set one and still don't see
+them).
 
 1. Go to **[Google AI Studio → API keys](https://aistudio.google.com/apikey)**
    and sign in with any Google account.
-2. Click **"Create API key"**. Gemini's free tier is generous enough for a
-   demo/interview project — no billing setup required.
-3. Copy the key. A real Gemini key **always starts with `AIza`** — if what
-   you have doesn't look like that, it isn't a Gemini API key (it's likely a
-   different kind of Google token, e.g. an OAuth access/refresh token) and
-   won't authenticate against `generativelanguage.googleapis.com`.
+2. Click **"Create API key"** (or copy an existing one). Gemini's free tier
+   is generous enough for a demo/interview project — no billing setup
+   required.
+3. Copy the key **using the page's own copy button next to the key value**,
+   not text you select by hand — Google's key format has changed over time
+   (older keys start with `AIza`; the page may now issue a different shape
+   entirely), so there's no single prefix to eyeball-check against. If the
+   key doesn't work, the fastest check is calling Gemini directly with it
+   (see below) rather than guessing from its shape.
 4. Paste it into `.env`:
    ```bash
    GEMINI_API_KEY="AIza...your-real-key..."
@@ -279,17 +278,29 @@ still don't see them).
    `.env` once, when the server process starts — editing the file while
    `next dev` is already running does nothing until you stop and re-run it.
 
+**To sanity-check a key on its own**, outside the app entirely, call Gemini
+directly:
+
+```bash
+curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=YOUR_KEY_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{"contents":[{"parts":[{"text":"Say hi in 3 words"}]}]}'
+```
+
+A working key returns a normal response (or occasionally a `503`, meaning
+the model is just busy — that still confirms the key itself is valid). An
+invalid key returns `400` with an `API_KEY_INVALID` message immediately.
+
 **The key never reaches the browser.** It's read from `process.env` only
 inside server-only modules ([`src/lib/ai/index.ts`](src/lib/ai/index.ts),
 [`src/lib/ai/gemini-provider.ts`](src/lib/ai/gemini-provider.ts),
 [`src/lib/ai/chat.ts`](src/lib/ai/chat.ts) — each imports the `server-only`
 package, which makes it a _build error_ to accidentally import one of them
 from a Client Component). The browser only ever talks to our own routes
-(`/api/ai/suggest-tags`, `/api/ai/chat`, `/api/notes/search`), which attach
-the key server-side when calling Gemini. There is no `NEXT_PUBLIC_*`
-variable for this key, deliberately — that prefix is what Next.js uses to
-decide a variable is safe to ship to the browser, and an AI provider key
-never is.
+(`/api/ai/suggest-tags`, `/api/ai/chat`), which attach the key server-side
+when calling Gemini. There is no `NEXT_PUBLIC_*` variable for this key,
+deliberately — that prefix is what Next.js uses to decide a variable is
+safe to ship to the browser, and an AI provider key never is.
 
 ## Database schema
 
@@ -312,7 +323,6 @@ model Note {
   title     String
   body      String    @default("")
   favorite  Boolean   @default(false)
-  embedding String?   // JSON-encoded float array, for semantic search
   ownerId   String
   owner     User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   tags      NoteTag[]
@@ -352,13 +362,6 @@ Design decisions, and why:
 - **`onDelete: Cascade` everywhere** — deleting a user deletes their notes and
   tags; deleting a note or tag deletes the join rows. There's no orphaned-row
   cleanup job to remember to run.
-- **`embedding` is a nullable `String`** (JSON-encoded `number[]`), not a
-  native vector column. A real vector type (e.g. `pgvector`) would be faster
-  at scale, but it's a Postgres extension that not every free hosting tier
-  enables by default, and at "one person's notes" scale, computing cosine
-  similarity in application code over a few hundred rows is instant. It also
-  means the exact same schema works against a plain Postgres instance
-  anywhere, with nothing extra to install.
 - **`cuid()` ids**, not auto-increment integers — they're unguessable, so a
   user can't enumerate other users' note/tag ids by incrementing a number,
   which matters given note/tag ids appear directly in API URLs.
@@ -409,7 +412,6 @@ see [Testing with Postman](#testing-with-postman).
 | `GET`    | `/api/notes/:id`             | Yes  | Get one note (404 if not yours)                                              |
 | `PATCH`  | `/api/notes/:id`             | Yes  | Update `title`/`body`/`favorite`/`tagIds` (partial)                          |
 | `DELETE` | `/api/notes/:id`             | Yes  | Delete a note                                                                |
-| `GET`    | `/api/notes/search?q=`       | Yes  | Semantic search (falls back to substring — see below)                        |
 | `POST`   | `/api/notes/:id/tags`        | Yes  | Attach an existing tag (`tagId`) to a note                                   |
 | `DELETE` | `/api/notes/:id/tags/:tagId` | Yes  | Detach a tag from a note                                                     |
 | `GET`    | `/api/tags`                  | Yes  | List your tags                                                               |
@@ -422,18 +424,17 @@ see [Testing with Postman](#testing-with-postman).
 (sent automatically by the browser; in Postman, sign in once and the
 collection's cookie jar carries it for the rest of the requests).
 
-## AI-assisted tagging, semantic search & AI chat
+## AI-assisted tagging & chat
 
-Three features, sharing the same "hidden until configured, degrades
+Two features, sharing the same "hidden until configured, degrades
 gracefully" philosophy — `GEMINI_API_KEY` unset never breaks the app, it
-just turns off the AI-specific extras:
+just turns off the AI-specific extras.
 
-Both of the first two go through one small abstraction, [`AiProvider`](src/lib/ai/types.ts):
+**Tag suggestion** goes through one small abstraction, [`AiProvider`](src/lib/ai/types.ts):
 
 ```ts
 interface AiProvider {
   suggestTags(input: { title: string; body: string }): Promise<string[]>;
-  embed(text: string): Promise<number[] | null>;
 }
 ```
 
@@ -442,7 +443,7 @@ interface AiProvider {
   in that one file) when `GEMINI_API_KEY` is set.
 - [`HeuristicProvider`](src/lib/ai/heuristic-provider.ts) is a zero-network
   fallback: it ranks the most frequent non-stopword terms in the note as
-  suggested tags, and can't produce embeddings.
+  suggested tags.
 
 [`src/lib/ai/index.ts`](src/lib/ai/index.ts) is the only place that decides
 which one to use, and it's resilient by construction, not by accident:
@@ -451,37 +452,19 @@ which one to use, and it's resilient by construction, not by accident:
 - Key configured but the call **times out** (8s), **rate-limits**, or the API
   is **down** → the error is caught, logged server-side, and the heuristic
   result is returned instead. The user sees a plainer suggestion, not an error.
-- Same logic for embeddings: a failed/missing embedding means that note's
-  `embedding` column just stays `null`, and semantic search treats that as
-  "fall back to substring match for this note" rather than throwing.
 
 **How tag suggestion is wired up:** the note editor has a "Suggest tags"
 button that calls `POST /api/ai/suggest-tags`; suggestions appear as chips
 the user explicitly accepts (adds the tag) or dismisses — nothing is applied
 automatically.
 
-**How semantic search is wired up:** creating or editing a note's title/body
-schedules embedding computation via Next's `after()` API
-([`src/lib/notes/embed.ts`](src/lib/notes/embed.ts)), so it runs _after_ the
-response is sent and never slows down saving a note. The "Meaning" tab in the
-notes list calls `GET /api/notes/search?q=...`
-([`src/app/api/notes/search/route.ts`](src/app/api/notes/search/route.ts)),
-which embeds the query, ranks notes by cosine similarity, and unions in any
-plain substring matches the ranking would otherwise miss (e.g. a note
-created moments ago whose embedding hasn't finished computing yet) — so a
-note never silently disappears from search just because the AI step hasn't
-caught up. When no provider is configured at all, the endpoint returns
-substring results directly and says so via a `mode: "substring"` field,
-which the UI surfaces as a small inline notice instead of pretending
-semantic search ran.
-
-Swapping providers (OpenAI, Anthropic, a local embedding model, ...) means
-writing one more class that implements `AiProvider` — nothing else changes.
+Swapping providers (OpenAI, Anthropic, a local model, ...) means writing one
+more class that implements `AiProvider` — nothing else changes.
 
 **Ask AI (chat).** A general-purpose chat panel pinned near the bottom of
 the sidebar ([`src/components/notes/ai-chat-panel.tsx`](src/components/notes/ai-chat-panel.tsx)),
 Notion-AI-style — it isn't wired to your notes, it's a scratch conversation.
-It doesn't fit the `AiProvider` interface (`suggestTags`/`embed` don't cover
+It doesn't fit the `AiProvider` interface (`suggestTags` doesn't cover
 multi-turn chat, and there's no sensible offline fallback for open-ended
 conversation), so it's a standalone function,
 [`chatWithGemini()`](src/lib/ai/chat.ts), called from `POST /api/ai/chat`.
@@ -549,7 +532,7 @@ links, and undo/redo, stored as HTML.
   (`javascript:`) are stripped either way — this is defense-in-depth, not
   redundant code.
 - Previews (the note list snippet) and anything sent to the AI (tag
-  suggestion prompts, embeddings) run through
+  suggestion prompts) run through
   [`htmlToText()`](src/lib/notes/html-to-text.ts) instead, so markup never
   leaks into a preview string or an AI prompt.
 
@@ -580,14 +563,11 @@ npm run test:watch    # watch mode
 
 **Unit tests** (`src/**/*.test.ts`, colocated with the code they test) cover
 pure logic with no I/O: Zod validation schemas, the notes filter/sort query
-builder, the AI tag-suggestion heuristic, cosine similarity, relative-time
-formatting, and the tag-color hash. These are fast, deterministic, and were
-genuinely written test-first for anything with real edge cases — e.g.
-`cosineSimilarity` was written to its test cases (identical vectors → 1,
-orthogonal → 0, mismatched lengths → 0 instead of throwing) rather than the
-other way around, and the notes query-builder tests pinned down "tag filters
-use OR, not AND" as a deliberate, documented choice before the API route was
-wired up to use it.
+builder, the AI tag-suggestion heuristic, relative-time formatting, and the
+tag-color hash. These are fast, deterministic, and were genuinely written
+test-first for anything with real edge cases — e.g. the notes query-builder
+tests pinned down "tag filters use OR, not AND" as a deliberate, documented
+choice before the API route was wired up to use it.
 
 **Integration tests** (`tests/api/**/*.test.ts`) exercise the real HTTP API
 against a real (test) Postgres database — not mocks. This was a deliberate
@@ -634,30 +614,69 @@ npm run build         # production build (also runs `prisma generate`)
 
 ## Deployment
 
-This deploys for free on Vercel + Neon + Gemini's free tier.
+This deploys for free on Vercel + Neon + Gemini's free tier. The short
+version: **environment variables live in your hosting provider's dashboard,
+never in the repo** — `.env` is git-ignored specifically so a real secret
+never ends up in version control (`.env.example` is the only one committed,
+and it only holds placeholder values). Vercel's "Environment Variables"
+settings page (or the equivalent on any other host) is where the real
+values go; the deployed app reads them from `process.env` exactly the same
+way it does locally, it just never sees a `.env` file at all in production.
 
-1. **Database — [Neon](https://neon.tech)** (or Supabase): create a free
-   Postgres project, copy its connection string.
-2. **AI (optional) — [Google AI Studio](https://aistudio.google.com/apikey)**:
+1. **Database — [Neon](https://neon.tech)** (or Supabase, or Railway): create
+   a free Postgres project and copy its connection string. This becomes your
+   production `DATABASE_URL` — a different one from your local `paged_dev`
+   database, so local development never touches production data. Neon (and
+   most managed Postgres hosts) stay running continuously; there's no
+   separate "start the database" step at deploy time the way there is
+   locally with `pg_ctlcluster`.
+2. **Google sign-in (optional)** — in
+   [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials),
+   edit your OAuth Client ID's **Authorized redirect URIs** and add
+   `https://<your-deployed-domain>/api/auth/google/callback` alongside the
+   `localhost` one you already have for local dev — both can coexist on the
+   same OAuth client. Skip this entirely to ship with email/password only.
+3. **AI (optional) — [Google AI Studio](https://aistudio.google.com/apikey)**:
    create a free Gemini API key. Skip this to ship with the heuristic
-   fallback — the app is fully functional without it.
-3. **Vercel**: import this repo, set the environment variables below in the
-   Vercel project settings, then deploy.
+   fallback for tags and no "Ask AI" button — the app is fully functional
+   without it.
+4. **Vercel**: import this repo, then in the project's **Settings → Environment
+   Variables** page, add each of these (this is the "storing it somewhere"
+   step — paste real values here, not in any file that gets committed):
 
-   | Variable         | Value                       |
-   | ---------------- | --------------------------- |
-   | `DATABASE_URL`   | your Neon connection string |
-   | `AUTH_SECRET`    | `openssl rand -base64 32`   |
-   | `GEMINI_API_KEY` | your key, or leave unset    |
+   | Variable               | Value                                    |
+   | ---------------------- | ---------------------------------------- |
+   | `DATABASE_URL`         | your Neon connection string              |
+   | `AUTH_SECRET`          | output of `openssl rand -base64 32`      |
+   | `GEMINI_API_KEY`       | your key, or leave unset                 |
+   | `GOOGLE_CLIENT_ID`     | your OAuth client ID, or leave unset     |
+   | `GOOGLE_CLIENT_SECRET` | your OAuth client secret, or leave unset |
 
-4. **Run migrations against production** once, from your machine, pointed at
-   the production `DATABASE_URL`:
+   Then deploy. Vercel builds and redeploys automatically on every push to
+   your default branch once this is set up.
+
+5. **Run migrations against production** once, from your own machine, pointed
+   at the production `DATABASE_URL` (this applies your Prisma migration
+   history to the production database — it's a one-time step per new
+   migration, not something Vercel's build does for you automatically):
 
    ```bash
    DATABASE_URL="<production-url>" npx prisma migrate deploy
    ```
 
-5. Visit the deployed URL, sign up, and you're in.
+   Run this again any time you add a new migration and deploy — the same
+   command is safe to re-run, since Prisma tracks which migrations have
+   already been applied and only runs the new ones.
+
+6. Visit the deployed URL, sign up, and you're in.
+
+**What actually needs re-running vs. what doesn't:** a normal code change
+just needs a `git push` — Vercel rebuilds and redeploys on its own. A schema
+change (a new Prisma migration) additionally needs step 5 run once against
+production before or right after that deploy. Environment variables only
+need to be set once in Vercel's dashboard; they don't need touching again
+unless a value itself changes (e.g. rotating `AUTH_SECRET`, which logs
+every signed-in user out since it invalidates all existing session JWTs).
 
 ## Troubleshooting
 
@@ -674,8 +693,8 @@ always a `.env` check rather than a code change:
    # Google button needs BOTH of these set (not empty strings):
    GOOGLE_CLIENT_ID="..."
    GOOGLE_CLIENT_SECRET="..."
-   # Ask AI + AI tag suggestions + "Meaning" search need this one:
-   GEMINI_API_KEY="AIza..."
+   # Ask AI + AI tag suggestions need this one:
+   GEMINI_API_KEY="..."
    ```
 2. **Restart `npm run dev`.** Next.js reads `.env` once at process start —
    saving the file while the dev server is already running has no effect
@@ -692,9 +711,10 @@ always a `.env` check rather than a code change:
    ```
    Both should print `true`. If either prints `false`, the `.env` file
    itself is the problem, not the app code.
-5. A Gemini key that doesn't start with `AIza` isn't a Gemini API key and
-   will fail Gemini's own auth check even though the button appears fine —
-   see [Setting up the Gemini API key](#setting-up-the-gemini-api-key).
+5. If the key is set but AI calls still fail, verify the key itself against
+   Gemini directly with the `curl` command in
+   [Setting up the Gemini API key](#setting-up-the-gemini-api-key) — a `400
+API_KEY_INVALID` means the key itself is the problem, not the app.
 
 **"CSS/Tailwind styling looks broken (no list bullets, plain headings)":**
 run `npm install` — `@tailwindcss/typography` is a devDependency the rich
@@ -716,14 +736,11 @@ Called out here explicitly rather than left for someone to discover:
 - **Tag filtering is OR, not AND**, and isn't configurable. Documented as a
   deliberate choice (`src/lib/notes/query-builder.ts`) matching how the tag
   chips read as a UI, but a real product might want both modes.
-- **Semantic search re-embeds the query on every request** rather than
-  caching recent query embeddings — fine at personal-notes scale, wasteful
-  at higher volume.
-- **The substring-search fallback matches against stored HTML**, not
-  extracted plain text (unlike AI tag suggestion / embeddings, which do use
-  `htmlToText` first). A search term that happens to span a tag boundary
-  (rare in practice) could miss a match. Fixing it means running the same
-  `htmlToText` pass at query time, deferred since it's a narrow edge case.
+- **Search only matches note titles**, not body text — `GET /api/notes?q=`
+  filters on `title` alone (`src/lib/notes/query-builder.ts`). A real product
+  would extend this to body content too (via `htmlToText`, same as tag
+  suggestion already does), deferred since title-only search covers the
+  common case.
 - **The rich text editor's link button uses `window.prompt()`** for the URL
   rather than an inline popover — accessible and functional, but not
   visually consistent with the rest of the UI.
@@ -750,9 +767,8 @@ Called out here explicitly rather than left for someone to discover:
 
 - Real-time collaboration/sync (or at least a "this note changed elsewhere"
   conflict warning) instead of last-write-wins.
-- Pagination/infinite scroll for large note collections, and a `pgvector`
-  index for semantic search once it's no longer scanning every note in
-  application code.
+- Pagination/infinite scroll for large note collections.
+- Extend search to match note body content, not just titles.
 - Rich text (or at least Markdown) instead of a plain textarea.
 - Rate limiting on the auth endpoints and the AI endpoints specifically —
   right now a malicious client could hammer `/api/ai/suggest-tags` and burn
