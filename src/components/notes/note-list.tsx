@@ -1,6 +1,8 @@
 import type { NoteDTO } from "@/types/note";
 import { NoteCard } from "@/components/notes/note-card";
+import { DateFilterPopover } from "@/components/notes/date-filter-popover";
 import type { SortOption } from "@/lib/validation/notes";
+import { formatDateFilterLabel, type AppliedDateFilter } from "@/lib/notes/date-ranges";
 
 export function NoteList({
   notes,
@@ -10,6 +12,9 @@ export function NoteList({
   isCreating,
   searchQuery,
   onSearchQueryChange,
+  dateFilter,
+  onApplyDateFilter,
+  onClearDateFilter,
   sort,
   onSortChange,
   isLoading,
@@ -22,6 +27,9 @@ export function NoteList({
   isCreating: boolean;
   searchQuery: string;
   onSearchQueryChange: (value: string) => void;
+  dateFilter: AppliedDateFilter | null;
+  onApplyDateFilter: (filter: AppliedDateFilter) => void;
+  onClearDateFilter: () => void;
   sort: SortOption;
   onSortChange: (sort: SortOption) => void;
   isLoading: boolean;
@@ -47,17 +55,37 @@ export function NoteList({
       </div>
 
       <div className="px-4 pb-3">
-        <label htmlFor="note-search" className="sr-only">
-          Search your notes
-        </label>
-        <input
-          id="note-search"
-          type="search"
-          placeholder="Search your notes…"
-          value={searchQuery}
-          onChange={(event) => onSearchQueryChange(event.target.value)}
-          className="block w-full rounded-lg border border-stone-300 px-3 py-2 text-sm shadow-sm focus-visible:border-teal-600"
-        />
+        <div className="flex items-center gap-2">
+          <label htmlFor="note-search" className="sr-only">
+            Search your notes
+          </label>
+          <input
+            id="note-search"
+            type="search"
+            placeholder="Search your notes…"
+            value={searchQuery}
+            onChange={(event) => onSearchQueryChange(event.target.value)}
+            className="block w-full flex-1 rounded-lg border border-stone-300 px-3 py-2 text-sm shadow-sm focus-visible:border-teal-600"
+          />
+          <DateFilterPopover value={dateFilter} onApply={onApplyDateFilter} onClear={onClearDateFilter} />
+        </div>
+
+        {dateFilter && (
+          <div className="mt-2 flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-medium text-teal-800">
+              <CalendarIcon />
+              {formatDateFilterLabel(dateFilter.preset, dateFilter.range)}
+            </span>
+            <button
+              type="button"
+              onClick={onClearDateFilter}
+              aria-label="Clear date filter"
+              className="rounded-full p-0.5 text-teal-700 hover:bg-teal-100"
+            >
+              <RemoveIcon />
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-end gap-2 px-4 pb-3">
@@ -98,5 +126,22 @@ export function NoteList({
         )}
       </div>
     </section>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <rect x="3" y="4" width="14" height="13" rx="1.5" />
+      <path d="M3 8h14M7 2.5v3M13 2.5v3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function RemoveIcon() {
+  return (
+    <svg viewBox="0 0 12 12" aria-hidden className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path d="M2 2l8 8M10 2l-8 8" strokeLinecap="round" />
+    </svg>
   );
 }

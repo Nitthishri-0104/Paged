@@ -33,17 +33,29 @@ export type UpdateNoteInput = z.infer<typeof updateNoteSchema>;
 export const SORT_OPTIONS = ["newest", "oldest"] as const;
 export type SortOption = (typeof SORT_OPTIONS)[number];
 
-export const notesQuerySchema = z.object({
-  q: z
-    .string()
-    .trim()
-    .max(200)
-    .optional()
-    .transform((value) => (value ? value : undefined)),
-  tagIds: z.array(z.string().cuid()).optional(),
-  sort: z.enum(SORT_OPTIONS).default("newest"),
-  favoritesOnly: z.boolean().optional().default(false),
-});
+export const notesQuerySchema = z
+  .object({
+    q: z
+      .string()
+      .trim()
+      .max(200)
+      .optional()
+      .transform((value) => (value ? value : undefined)),
+    tagIds: z.array(z.string().cuid()).optional(),
+    sort: z.enum(SORT_OPTIONS).default("newest"),
+    favoritesOnly: z.boolean().optional().default(false),
+    // Absolute instants (not bare dates) — the client resolves "Today" /
+    // "This week" / a custom range into concrete UTC timestamps using the
+    // user's own local timezone *before* sending the request, so the
+    // server only ever compares real instants and never has to guess which
+    // timezone a bare "2026-08-28" was meant in.
+    createdFrom: z.string().datetime().optional(),
+    createdTo: z.string().datetime().optional(),
+  })
+  .refine((data) => !data.createdFrom || !data.createdTo || data.createdFrom <= data.createdTo, {
+    message: "Start date must be on or before the end date",
+    path: ["createdFrom"],
+  });
 export type NotesQuery = z.infer<typeof notesQuerySchema>;
 
 /**
@@ -58,5 +70,7 @@ export function parseNotesQuery(searchParams: URLSearchParams): NotesQuery {
     tagIds: tagIds.length > 0 ? tagIds : undefined,
     sort: searchParams.get("sort") ?? undefined,
     favoritesOnly: searchParams.get("favoritesOnly") === "true",
+    createdFrom: searchParams.get("createdFrom") ?? undefined,
+    createdTo: searchParams.get("createdTo") ?? undefined,
   });
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { NoteDTO, TagDTO } from "@/types/note";
 import type { SortOption } from "@/lib/validation/notes";
 import type { TagColorKey } from "@/lib/notes/tag-colors";
+import type { AppliedDateFilter } from "@/lib/notes/date-ranges";
 import { apiFetch, ApiClientError } from "@/lib/api-client";
 import { Sidebar, type ViewFilter } from "@/components/notes/sidebar";
 import { NoteList } from "@/components/notes/note-list";
@@ -52,6 +53,7 @@ export function NotesApp({
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [dateFilter, setDateFilter] = useState<AppliedDateFilter | null>(null);
   const [sort, setSort] = useState<SortOption>("newest");
 
   const [isListLoading, setIsListLoading] = useState(false);
@@ -110,6 +112,8 @@ export function NotesApp({
         for (const tagId of selectedTagIds) params.append("tagId", tagId);
         params.set("sort", sort);
         if (view === "favorites") params.set("favoritesOnly", "true");
+        if (dateFilter?.range.from) params.set("createdFrom", dateFilter.range.from.toISOString());
+        if (dateFilter?.range.to) params.set("createdTo", dateFilter.range.to.toISOString());
 
         const data = await apiFetch<{ notes: NoteDTO[] }>(`/api/notes?${params.toString()}`, {
           signal: controller.signal,
@@ -125,7 +129,7 @@ export function NotesApp({
 
     void load();
     return () => controller.abort();
-  }, [debouncedQuery, selectedTagIds, sort, view]);
+  }, [debouncedQuery, selectedTagIds, sort, view, dateFilter]);
 
   const selectedNote = useMemo(() => notes.find((note) => note.id === selectedNoteId) ?? null, [notes, selectedNoteId]);
 
@@ -297,6 +301,9 @@ export function NotesApp({
           isCreating={isCreating}
           searchQuery={searchQuery}
           onSearchQueryChange={setSearchQuery}
+          dateFilter={dateFilter}
+          onApplyDateFilter={setDateFilter}
+          onClearDateFilter={() => setDateFilter(null)}
           sort={sort}
           onSortChange={setSort}
           isLoading={isListLoading}

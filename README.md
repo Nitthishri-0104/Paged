@@ -26,6 +26,7 @@ Built with Next.js (App Router) + TypeScript + PostgreSQL (Prisma) + Tailwind CS
 - [API architecture & endpoints](#api-architecture--endpoints)
 - [AI-assisted tagging & chat](#ai-assisted-tagging--chat)
 - [Tags](#tags)
+- [Filtering by date](#filtering-by-date)
 - [Rich text editing & copy/paste](#rich-text-editing--copypaste)
 - [Testing with Postman](#testing-with-postman)
 - [Testing approach](#testing-approach)
@@ -56,7 +57,10 @@ Built with Next.js (App Router) + TypeScript + PostgreSQL (Prisma) + Tailwind CS
   while editing a note or from the sidebar's "+ New Tag" button; persists
   across refresh, filterable from the sidebar.
 - **Filtering & sorting** — filter by one or more tags (OR semantics), search by
-  title, sort by creation date (newest/oldest first).
+  title, filter by creation date (Today/Yesterday/This week/Last week/This
+  month/Last month, or a custom range), sort by creation date
+  (newest/oldest first). All of these combine — a title search and a date
+  filter apply together (AND), not as alternatives.
 - **AI tag suggestions** — suggests 2–3 tags per note that you accept or reject.
 - **AI chat** — a simple Notion-AI-style chat panel pinned near the bottom of
   the sidebar (Gemini-backed, key stays server-side). Not connected to your
@@ -101,11 +105,11 @@ src/
   components/
     auth/                    # Login/signup forms, Google button
     notes/                   # Sidebar, note list, note editor, rich text editor,
-                              # AI chat panel, create-tag modal, tag pill
+                              # AI chat panel, create-tag modal, date filter popover, tag pill
   lib/
     auth/                    # Session (JWT) issue/verify, password hashing, Google OAuth
     ai/                      # Provider abstraction (Gemini + heuristic fallback), chat
-    notes/                   # Query builder, HTML sanitizer, HTML→text, tag colors
+    notes/                   # Query builder, HTML sanitizer, HTML→text, tag colors, date ranges
     validation/               # Zod schemas (single source of truth for input rules)
     api/errors.ts            # Shared error → HTTP response mapping
     db.ts                    # Prisma client singleton
@@ -399,26 +403,26 @@ A full request/response example for every route below is in
 [`postman/Paged.postman_collection.json`](postman/Paged.postman_collection.json) —
 see [Testing with Postman](#testing-with-postman).
 
-| Method   | Endpoint                     | Auth | Purpose                                                                      |
-| -------- | ---------------------------- | ---- | ---------------------------------------------------------------------------- |
-| `POST`   | `/api/auth/signup`           | No   | Create an account (`email`, `password`), signs in immediately                |
-| `POST`   | `/api/auth/signin`           | No   | Sign in with email/password                                                  |
-| `POST`   | `/api/auth/signout`          | Yes  | Clear the session cookie                                                     |
-| `GET`    | `/api/auth/me`               | No   | Current session's `{ user }`, or `{ user: null }`                            |
-| `GET`    | `/api/auth/google`           | No   | Redirects to Google's OAuth consent screen                                   |
-| `GET`    | `/api/auth/google/callback`  | No   | OAuth callback — exchanges the code, creates/links the user, signs in        |
-| `GET`    | `/api/notes`                 | Yes  | List your notes — `?q=`, `?tagId=` (repeatable), `?sort=`, `?favoritesOnly=` |
-| `POST`   | `/api/notes`                 | Yes  | Create a note (`title`, `body`, `tagIds?`)                                   |
-| `GET`    | `/api/notes/:id`             | Yes  | Get one note (404 if not yours)                                              |
-| `PATCH`  | `/api/notes/:id`             | Yes  | Update `title`/`body`/`favorite`/`tagIds` (partial)                          |
-| `DELETE` | `/api/notes/:id`             | Yes  | Delete a note                                                                |
-| `POST`   | `/api/notes/:id/tags`        | Yes  | Attach an existing tag (`tagId`) to a note                                   |
-| `DELETE` | `/api/notes/:id/tags/:tagId` | Yes  | Detach a tag from a note                                                     |
-| `GET`    | `/api/tags`                  | Yes  | List your tags                                                               |
-| `POST`   | `/api/tags`                  | Yes  | Create a tag (`name`, `color?`) — idempotent by name (upsert)                |
-| `DELETE` | `/api/tags/:id`              | Yes  | Delete a tag (detaches it from all notes first)                              |
-| `POST`   | `/api/ai/suggest-tags`       | Yes  | Suggest 2–3 tags for `{ title, body }`                                       |
-| `POST`   | `/api/ai/chat`               | Yes  | One turn of the Ask AI chat — `{ messages: [{ role, text }] }`               |
+| Method   | Endpoint                     | Auth | Purpose                                                                                                                                |
+| -------- | ---------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST`   | `/api/auth/signup`           | No   | Create an account (`email`, `password`), signs in immediately                                                                          |
+| `POST`   | `/api/auth/signin`           | No   | Sign in with email/password                                                                                                            |
+| `POST`   | `/api/auth/signout`          | Yes  | Clear the session cookie                                                                                                               |
+| `GET`    | `/api/auth/me`               | No   | Current session's `{ user }`, or `{ user: null }`                                                                                      |
+| `GET`    | `/api/auth/google`           | No   | Redirects to Google's OAuth consent screen                                                                                             |
+| `GET`    | `/api/auth/google/callback`  | No   | OAuth callback — exchanges the code, creates/links the user, signs in                                                                  |
+| `GET`    | `/api/notes`                 | Yes  | List your notes — `?q=`, `?tagId=` (repeatable), `?sort=`, `?favoritesOnly=`, `?createdFrom=`, `?createdTo=` (ISO instants; see below) |
+| `POST`   | `/api/notes`                 | Yes  | Create a note (`title`, `body`, `tagIds?`)                                                                                             |
+| `GET`    | `/api/notes/:id`             | Yes  | Get one note (404 if not yours)                                                                                                        |
+| `PATCH`  | `/api/notes/:id`             | Yes  | Update `title`/`body`/`favorite`/`tagIds` (partial)                                                                                    |
+| `DELETE` | `/api/notes/:id`             | Yes  | Delete a note                                                                                                                          |
+| `POST`   | `/api/notes/:id/tags`        | Yes  | Attach an existing tag (`tagId`) to a note                                                                                             |
+| `DELETE` | `/api/notes/:id/tags/:tagId` | Yes  | Detach a tag from a note                                                                                                               |
+| `GET`    | `/api/tags`                  | Yes  | List your tags                                                                                                                         |
+| `POST`   | `/api/tags`                  | Yes  | Create a tag (`name`, `color?`) — idempotent by name (upsert)                                                                          |
+| `DELETE` | `/api/tags/:id`              | Yes  | Delete a tag (detaches it from all notes first)                                                                                        |
+| `POST`   | `/api/ai/suggest-tags`       | Yes  | Suggest 2–3 tags for `{ title, body }`                                                                                                 |
+| `POST`   | `/api/ai/chat`               | Yes  | One turn of the Ask AI chat — `{ messages: [{ role, text }] }`                                                                         |
 
 "Yes" auth routes require the `paged_session` cookie set by sign-in/sign-up
 (sent automatically by the browser; in Postman, sign in once and the
@@ -501,6 +505,45 @@ blue, orange, teal, green, pink, purple, brown.
 - **Deleting a tag** detaches it from every note it was on; it does not
   delete those notes.
 
+## Filtering by date
+
+The **Filter** button next to the search box
+([`DateFilterPopover`](src/components/notes/date-filter-popover.tsx)) opens
+a small popover with seven options — Today, Yesterday, This week, Last
+week, This month, Last month, or a custom `From`/`To` range — that filters
+the note list to notes **created** in that window. Selecting an option
+doesn't do anything by itself; nothing changes until **Apply** is pressed,
+so browsing the radio options never fires a request. Once applied, a small
+chip below the search box shows what's active (e.g. "This month" or "Aug 1
+– Aug 15") with its own **×** to clear it, alongside a "Clear" option
+inside the popover itself.
+
+**How the boundaries are computed**
+([`src/lib/notes/date-ranges.ts`](src/lib/notes/date-ranges.ts)): entirely
+in the browser, from the browser's own local clock — "Today" means today
+in _your_ timezone, not the server's. Weeks are Monday-start. The resolved
+`from`/`to` are sent to the server as absolute instants
+(`Date.toISOString()`, e.g. `createdFrom=2026-08-01T00:00:00.000Z`), so the
+server never has to guess which timezone a bare date string was meant in —
+it just compares real instants. Custom ranges accept either end alone (an
+open-ended range) and reject `From` being after `To` with a clear message,
+both in the popover before it submits and again on the server
+(`notesQuerySchema` in
+[`src/lib/validation/notes.ts`](src/lib/validation/notes.ts)) for the same
+reason every other input in this app is validated server-side too — the
+API is never trusted to only ever receive well-behaved requests from this
+UI.
+
+**How it combines with search:** it's one more `AND`-ed condition in the
+same `GET /api/notes` query as the title search and tag filters — a title
+search for "Java" plus "This month" returns notes that match both, not
+either. This runs entirely at the database level
+([`buildNotesWhere`](src/lib/notes/query-builder.ts) adds a
+`createdAt: { gte, lte }` clause Prisma turns into a real `WHERE` clause),
+using the existing `@@index([ownerId, createdAt])` index already in the
+schema — no new column, no new index, and no note list ever gets fetched
+in full just to be filtered down client-side.
+
 ## Rich text editing & copy/paste
 
 The note body is a real rich-text editor
@@ -563,11 +606,16 @@ npm run test:watch    # watch mode
 
 **Unit tests** (`src/**/*.test.ts`, colocated with the code they test) cover
 pure logic with no I/O: Zod validation schemas, the notes filter/sort query
-builder, the AI tag-suggestion heuristic, relative-time formatting, and the
-tag-color hash. These are fast, deterministic, and were genuinely written
-test-first for anything with real edge cases — e.g. the notes query-builder
-tests pinned down "tag filters use OR, not AND" as a deliberate, documented
-choice before the API route was wired up to use it.
+builder, the AI tag-suggestion heuristic, relative-time formatting, the
+tag-color hash, and the date-filter boundary math. These are fast,
+deterministic, and were genuinely written test-first for anything with real
+edge cases — e.g. the notes query-builder tests pinned down "tag filters
+use OR, not AND" as a deliberate, documented choice before the API route
+was wired up to use it, and
+[`date-ranges.test.ts`](src/lib/notes/date-ranges.test.ts) pins down each
+preset's exact boundaries (a fixed, injected "now" makes "this week starts
+Monday" and "this month handles a December → January rollover" assertable
+without waiting for an actual month to change).
 
 **Integration tests** (`tests/api/**/*.test.ts`) exercise the real HTTP API
 against a real (test) Postgres database — not mocks. This was a deliberate
@@ -591,6 +639,16 @@ proven, not just asserted:
   rejected if it references another user's tag id.
 - `tests/api/notes-filtering.test.ts` — title search, multi-tag OR filtering,
   favorites-only, and both sort directions.
+- `tests/api/notes-date-filter.test.ts` — inclusive range boundaries
+  (including a note created exactly at the start/end instant), open-ended
+  ranges (only `createdFrom` or only `createdTo`), the date filter combined
+  with a title search (`AND`, not `OR`), an empty result set for a range
+  with no matches, and a `400` with a clear message for `createdFrom` after
+  `createdTo`. Notes can't get an arbitrary `createdAt` through the public
+  API (correctly — it's server-assigned), so these tests set it directly
+  against the same test database the API itself is running against, the
+  one deliberate exception to "integration tests only talk to the app over
+  HTTP" elsewhere in this suite.
 - `tests/api/tags.test.ts` — tag creation is idempotent, add/remove-tag
   endpoints don't disturb other tags on the same note, deleting a tag
   detaches it without deleting the note, and cross-user tag deletion 404s.

@@ -108,10 +108,22 @@
                   "description": "Repeatable — one or more tag ids, OR semantics"
                 },
                 { "key": "sort", "value": "newest", "description": "newest | oldest" },
-                { "key": "favoritesOnly", "value": "true", "disabled": true }
+                { "key": "favoritesOnly", "value": "true", "disabled": true },
+                {
+                  "key": "createdFrom",
+                  "value": "2026-08-01T00:00:00.000Z",
+                  "disabled": true,
+                  "description": "ISO instant (inclusive lower bound on createdAt) — an absolute timestamp, not a bare date, so timezone is never ambiguous"
+                },
+                {
+                  "key": "createdTo",
+                  "value": "2026-08-31T23:59:59.999Z",
+                  "disabled": true,
+                  "description": "ISO instant (inclusive upper bound on createdAt); either bound may be given alone for an open-ended range"
+                }
               ]
             },
-            "description": "Lists the signed-in user's notes, newest first by default. Requires auth.\n\nExpected response — 200 OK:\n```json\n{\n  \"notes\": [\n    {\n      \"id\": \"clx...\",\n      \"title\": \"Wedding planning\",\n      \"body\": \"<p>Book the venue</p>\",\n      \"favorite\": false,\n      \"createdAt\": \"2026-08-27T12:00:00.000Z\",\n      \"updatedAt\": \"2026-08-27T12:00:00.000Z\",\n      \"tags\": [{ \"id\": \"clx...\", \"name\": \"Wedding\", \"color\": \"blue\" }]\n    }\n  ]\n}\n```"
+            "description": "Lists the signed-in user's notes, newest first by default. Requires auth. `createdFrom`/`createdTo` filter by creation date and combine (AND) with `q` and `tagId` — this is the same query the notes list's search box, tag chips, and date-filter popover all build together.\n\nExpected response — 200 OK:\n```json\n{\n  \"notes\": [\n    {\n      \"id\": \"clx...\",\n      \"title\": \"Wedding planning\",\n      \"body\": \"<p>Book the venue</p>\",\n      \"favorite\": false,\n      \"createdAt\": \"2026-08-27T12:00:00.000Z\",\n      \"updatedAt\": \"2026-08-27T12:00:00.000Z\",\n      \"tags\": [{ \"id\": \"clx...\", \"name\": \"Wedding\", \"color\": \"blue\" }]\n    }\n  ]\n}\n```\n\nErrors:\n- 400 if `createdFrom` is after `createdTo`"
           },
           "response": []
         },
