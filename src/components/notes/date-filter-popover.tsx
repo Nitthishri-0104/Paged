@@ -125,12 +125,19 @@ export function DateFilterPopover({
       </button>
 
       {isOpen && (
+        // max-h + overflow-y-auto: the "Custom date" fields push this past
+        // ~32rem tall, which is taller than the viewport on a shorter
+        // screen or a maximized-but-not-huge browser window — without a
+        // cap the popover just renders past the bottom of the page, taking
+        // Apply/Clear with it, inaccessible without shrinking the window
+        // or zooming out. Capping height and scrolling internally instead
+        // keeps every option reachable regardless of window size.
         <div
           ref={popoverRef}
           role="dialog"
           aria-label="Search filters"
           onKeyDown={handlePopoverKeyDown}
-          className="absolute right-0 top-full z-10 mt-2 w-72 rounded-xl border border-stone-200 bg-white p-4 shadow-xl"
+          className="absolute right-0 top-full z-10 mt-2 max-h-[min(32rem,calc(100vh-8rem))] w-72 overflow-y-auto rounded-xl border border-stone-200 bg-white p-4 shadow-xl"
         >
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-stone-900">Search Filters</h2>
