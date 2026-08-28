@@ -36,7 +36,7 @@ export function Sidebar({
 
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r border-stone-200 bg-stone-100/60 p-4">
-      <div className="flex items-center gap-2 px-2 pb-4">
+      <header className="flex items-center gap-2 px-2 pb-4">
         <span
           aria-hidden
           className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-700 text-base font-bold text-white"
@@ -44,7 +44,7 @@ export function Sidebar({
           P
         </span>
         <span className="text-lg font-bold tracking-tight text-stone-900">Paged</span>
-      </div>
+      </header>
 
       <nav aria-label="Note views" className="space-y-1">
         <SidebarButton active={view === "all"} onClick={() => onChangeView("all")} count={totalCount}>
@@ -55,10 +55,12 @@ export function Sidebar({
         </SidebarButton>
       </nav>
 
-      <div className="mt-6 flex-1 overflow-y-auto">
-        <h2 className="px-3 text-xs font-semibold uppercase tracking-wide text-stone-400">Tags</h2>
+      <section aria-labelledby="sidebar-tags-heading" className="mt-6 flex-1 overflow-y-auto">
+        <h2 id="sidebar-tags-heading" className="px-3 text-xs font-semibold uppercase tracking-wide text-stone-600">
+          Tags
+        </h2>
         {tags.length === 0 ? (
-          <p className="px-3 py-2 text-sm text-stone-400">No tags yet</p>
+          <p className="px-3 py-2 text-sm text-stone-600">No tags yet</p>
         ) : (
           <ul className="mt-1 space-y-0.5">
             {tags.map((tag) => {
@@ -90,13 +92,13 @@ export function Sidebar({
         >
           <PlusIcon /> New Tag
         </button>
-      </div>
+      </section>
 
-      <div className="mt-4 space-y-1 border-t border-stone-200 pt-3">
+      <footer className="mt-4 space-y-1 border-t border-stone-200 pt-3">
         {aiChatEnabled && <AiChatPanel />}
-        <p className="truncate px-3 pb-1 text-xs text-stone-400">{userEmail}</p>
+        <p className="truncate px-3 pb-1 text-xs text-stone-600">{userEmail}</p>
         <SignOutButton />
-      </div>
+      </footer>
 
       {isCreateTagOpen && <CreateTagModal onClose={() => setIsCreateTagOpen(false)} onCreate={onCreateTag} />}
     </aside>

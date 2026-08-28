@@ -19,12 +19,13 @@ export function NoteCard({ note, isSelected, onSelect }: { note: NoteDTO; isSele
         }`}
       >
         <div className="flex items-start justify-between gap-2">
-          <h3 className={`truncate text-sm font-semibold ${isSelected ? "text-white" : "text-stone-900"}`}>
+          <h2 className={`truncate text-sm font-semibold ${isSelected ? "text-white" : "text-stone-900"}`}>
             {note.title || "Untitled note"}
-          </h3>
+          </h2>
           {note.favorite && (
             <svg
               viewBox="0 0 20 20"
+              role="img"
               aria-label="Favorite"
               className={`h-4 w-4 shrink-0 ${isSelected ? "text-white" : "text-amber-500"}`}
               fill="currentColor"
@@ -42,13 +43,13 @@ export function NoteCard({ note, isSelected, onSelect }: { note: NoteDTO; isSele
               <TagPill key={tag.id} name={tag.name} color={tag.color} />
             ))}
             {note.tags.length > 3 && (
-              <span className={`text-xs ${isSelected ? "text-teal-100" : "text-stone-400"}`}>
+              <span className={`text-xs ${isSelected ? "text-teal-100" : "text-stone-500"}`}>
                 +{note.tags.length - 3}
               </span>
             )}
           </div>
         )}
-        <p className={`mt-2 text-xs ${isSelected ? "text-teal-100" : "text-stone-400"}`}>
+        <p className={`mt-2 text-xs ${isSelected ? "text-teal-100" : "text-stone-500"}`}>
           {formatRelativeTime(note.createdAt)}
         </p>
       </button>

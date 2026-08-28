@@ -300,39 +300,41 @@ export function NotesApp({
         favoriteCount={counts.favorites}
         aiChatEnabled={aiChatEnabled}
       />
-      <NoteList
-        notes={notes}
-        selectedNoteId={selectedNoteId}
-        onSelect={selectNote}
-        onCreateNote={createNote}
-        isCreating={isCreating}
-        searchQuery={searchQuery}
-        onSearchQueryChange={setSearchQuery}
-        searchMode={searchMode}
-        onSearchModeChange={setSearchMode}
-        sort={sort}
-        onSortChange={setSort}
-        isLoading={isListLoading}
-        error={listError}
-        resolvedSearchMode={resolvedSearchMode}
-      />
-      <NoteEditor
-        note={selectedNote}
-        allTags={tags}
-        saveStatus={saveStatus}
-        onEdit={(patch) => selectedNote && editNote(selectedNote.id, patch)}
-        onToggleFavorite={() =>
-          selectedNote && void patchNoteNow(selectedNote.id, { favorite: !selectedNote.favorite })
-        }
-        onDelete={() => selectedNote && void deleteNote(selectedNote.id)}
-        onAddTag={(name) => void addTagToSelectedNote(name)}
-        onRemoveTag={removeTagFromSelectedNote}
-        aiSuggestions={aiSuggestions}
-        isFetchingSuggestions={isFetchingSuggestions}
-        onFetchSuggestions={() => void fetchSuggestions()}
-        onAcceptSuggestion={(name) => void acceptSuggestion(name)}
-        onDismissSuggestion={dismissSuggestion}
-      />
+      <main className="flex flex-1 overflow-hidden">
+        <NoteList
+          notes={notes}
+          selectedNoteId={selectedNoteId}
+          onSelect={selectNote}
+          onCreateNote={createNote}
+          isCreating={isCreating}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          searchMode={searchMode}
+          onSearchModeChange={setSearchMode}
+          sort={sort}
+          onSortChange={setSort}
+          isLoading={isListLoading}
+          error={listError}
+          resolvedSearchMode={resolvedSearchMode}
+        />
+        <NoteEditor
+          note={selectedNote}
+          allTags={tags}
+          saveStatus={saveStatus}
+          onEdit={(patch) => selectedNote && editNote(selectedNote.id, patch)}
+          onToggleFavorite={() =>
+            selectedNote && void patchNoteNow(selectedNote.id, { favorite: !selectedNote.favorite })
+          }
+          onDelete={() => selectedNote && void deleteNote(selectedNote.id)}
+          onAddTag={(name) => void addTagToSelectedNote(name)}
+          onRemoveTag={removeTagFromSelectedNote}
+          aiSuggestions={aiSuggestions}
+          isFetchingSuggestions={isFetchingSuggestions}
+          onFetchSuggestions={() => void fetchSuggestions()}
+          onAcceptSuggestion={(name) => void acceptSuggestion(name)}
+          onDismissSuggestion={dismissSuggestion}
+        />
+      </main>
     </div>
   );
 }

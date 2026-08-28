@@ -38,7 +38,7 @@ export function NoteList({
       <div className="flex items-center justify-between p-4 pb-3">
         <div>
           <h1 className="text-lg font-bold text-stone-900">Your Notes</h1>
-          <p className="text-xs text-stone-400">
+          <p className="text-xs text-stone-500">
             {notes.length} {notes.length === 1 ? "note" : "notes"}
           </p>
         </div>
@@ -46,7 +46,7 @@ export function NoteList({
           type="button"
           onClick={onCreateNote}
           disabled={isCreating}
-          className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-60"
+          className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-semibold text-stone-900 transition-colors hover:bg-amber-600 disabled:opacity-60"
         >
           + New Note
         </button>
@@ -67,25 +67,23 @@ export function NoteList({
       </div>
 
       <div className="flex items-center justify-between gap-2 px-4 pb-3">
-        <div role="tablist" aria-label="Search mode" className="flex rounded-lg bg-stone-100 p-0.5 text-sm">
+        <div role="group" aria-label="Search mode" className="flex rounded-lg bg-stone-100 p-0.5 text-sm">
           <button
             type="button"
-            role="tab"
-            aria-selected={searchMode === "substring"}
+            aria-pressed={searchMode === "substring"}
             onClick={() => onSearchModeChange("substring")}
             className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
-              searchMode === "substring" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500"
+              searchMode === "substring" ? "bg-white text-stone-900 shadow-sm" : "text-stone-600"
             }`}
           >
             Words
           </button>
           <button
             type="button"
-            role="tab"
-            aria-selected={searchMode === "semantic"}
+            aria-pressed={searchMode === "semantic"}
             onClick={() => onSearchModeChange("semantic")}
             className={`rounded-md px-2.5 py-1 font-medium transition-colors ${
-              searchMode === "semantic" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500"
+              searchMode === "semantic" ? "bg-white text-stone-900 shadow-sm" : "text-stone-600"
             }`}
           >
             Meaning
@@ -117,9 +115,9 @@ export function NoteList({
             {error}
           </p>
         )}
-        {!error && isLoading && <p className="py-8 text-center text-sm text-stone-400">Loading…</p>}
+        {!error && isLoading && <p className="py-8 text-center text-sm text-stone-500">Loading…</p>}
         {!error && !isLoading && notes.length === 0 && (
-          <p className="py-8 text-center text-sm text-stone-400">No notes match your filters yet.</p>
+          <p className="py-8 text-center text-sm text-stone-500">No notes match your filters yet.</p>
         )}
         {!error && !isLoading && notes.length > 0 && (
           <ul className="space-y-2">

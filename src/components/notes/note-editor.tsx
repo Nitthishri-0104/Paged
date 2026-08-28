@@ -51,7 +51,7 @@ export function NoteEditor({
 
   if (!note) {
     return (
-      <section className="flex flex-1 items-center justify-center text-stone-400" aria-label="Note editor">
+      <section className="flex flex-1 items-center justify-center text-stone-500" aria-label="Note editor">
         <p>Select a note, or create a new one to get started.</p>
       </section>
     );
@@ -77,8 +77,8 @@ export function NoteEditor({
 
   return (
     <section className="flex flex-1 flex-col overflow-y-auto bg-white" aria-label="Note editor">
-      <div className="flex items-center justify-between border-b border-stone-100 px-8 py-3">
-        <span className="text-xs text-stone-400">
+      <header className="flex items-center justify-between border-b border-stone-100 px-8 py-3">
+        <span className="text-xs text-stone-500">
           {saveStatus === "saving" && "Saving…"}
           {saveStatus === "saved" && `Edited ${formatRelativeTime(note.updatedAt)}`}
           {saveStatus === "error" && <span className="text-rose-500">Couldn&apos;t save — check your connection</span>}
@@ -90,7 +90,7 @@ export function NoteEditor({
             onClick={onToggleFavorite}
             aria-pressed={note.favorite}
             aria-label={note.favorite ? "Remove from favorites" : "Add to favorites"}
-            className={`rounded-lg p-2 hover:bg-stone-100 ${note.favorite ? "text-amber-500" : "text-stone-400"}`}
+            className={`rounded-lg p-2 hover:bg-stone-100 ${note.favorite ? "text-amber-500" : "text-stone-500"}`}
           >
             <svg
               viewBox="0 0 20 20"
@@ -110,7 +110,7 @@ export function NoteEditor({
             type="button"
             onClick={onDelete}
             aria-label="Delete note"
-            className="rounded-lg p-2 text-stone-400 hover:bg-rose-50 hover:text-rose-600"
+            className="rounded-lg p-2 text-stone-500 hover:bg-rose-50 hover:text-rose-600"
           >
             <svg
               viewBox="0 0 20 20"
@@ -128,7 +128,7 @@ export function NoteEditor({
             </svg>
           </button>
         </div>
-      </div>
+      </header>
 
       <div className="flex-1 px-8 py-6">
         <label htmlFor="note-title" className="sr-only">
@@ -139,7 +139,7 @@ export function NoteEditor({
           value={note.title}
           onChange={(event) => onEdit({ title: event.target.value })}
           placeholder="Untitled note"
-          className="w-full border-none p-0 text-3xl font-bold text-stone-900 placeholder-stone-300 focus:outline-none"
+          className="w-full border-none p-0 text-3xl font-bold text-stone-900 placeholder-stone-500 focus:outline-none"
         />
 
         <label htmlFor="note-body" className="sr-only">
@@ -150,7 +150,7 @@ export function NoteEditor({
         </div>
 
         <div className="mt-8 border-t border-stone-100 pt-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-stone-400">Tags</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-stone-500">Tags</h2>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {note.tags.map((tag) => (
               <TagPill key={tag.id} name={tag.name} color={tag.color} onRemove={() => onRemoveTag(tag.id)} />
@@ -205,7 +205,7 @@ export function NoteEditor({
                     type="button"
                     onClick={() => onDismissSuggestion(name)}
                     aria-label={`Dismiss suggested tag ${name}`}
-                    className="rounded-full px-1.5 text-stone-400 hover:bg-stone-100"
+                    className="rounded-full px-1.5 text-stone-500 hover:bg-stone-100"
                   >
                     ×
                   </button>

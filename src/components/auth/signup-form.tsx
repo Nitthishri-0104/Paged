@@ -37,7 +37,7 @@ export function SignupForm({ googleEnabled }: { googleEnabled: boolean }) {
       {googleEnabled && (
         <>
           <GoogleButton />
-          <div className="flex items-center gap-3 text-xs font-medium text-stone-400">
+          <div className="flex items-center gap-3 text-xs font-medium text-stone-500">
             <span className="h-px flex-1 bg-stone-200" aria-hidden />
             or
             <span className="h-px flex-1 bg-stone-200" aria-hidden />
