@@ -1,6 +1,8 @@
 import "server-only";
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
+// See gemini-provider.ts for why this is gemini-3.6-flash (gemini-2.5-flash
+// is no longer available to new users) and why thinkingConfig is set below.
+const DEFAULT_MODEL = "gemini-3.6-flash";
 const REQUEST_TIMEOUT_MS = 20_000;
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const MAX_HISTORY_MESSAGES = 20;
@@ -41,7 +43,7 @@ export async function chatWithGemini(messages: ChatMessage[]): Promise<string> {
         role: message.role,
         parts: [{ text: message.text }],
       })),
-      generationConfig: { temperature: 0.4, maxOutputTokens: 800 },
+      generationConfig: { temperature: 0.4, maxOutputTokens: 800, thinkingConfig: { thinkingLevel: "LOW" } },
     }),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
