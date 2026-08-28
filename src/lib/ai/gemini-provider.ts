@@ -1,6 +1,11 @@
 import type { AiProvider, TagSuggestionInput } from "@/lib/ai/types";
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
+// gemini-2.5-flash is no longer available to new users as of 2026; Google's
+// own 404 error for it points here. gemini-3.6-flash reasons by default
+// (see the `thinkingConfig` below), so every call pins `thinkingLevel: "LOW"`
+// to bound that overhead — worth knowing since it still eats real output
+// budget (confirmed: a 100-token cap left ~0 room for an actual answer).
+const DEFAULT_MODEL = "gemini-3.6-flash";
 // text-embedding-004 was shut down by Google on 2026-01-14; every embed()
 // call against it now 404s ("is not found for API version v1beta"), which
 // looked like "semantic search isn't available" in the UI even with a
@@ -56,7 +61,11 @@ export class GeminiProvider implements AiProvider {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 100 },
+        // 500, not ~100, specifically because gemini-3.6-flash's minimum
+        // thinking overhead alone can run 90-300 tokens even at the lowest
+        // thinking level — a tight budget here gets silently truncated
+        // (finishReason: "MAX_TOKENS") before any visible JSON is written.
+        generationConfig: { temperature: 0.2, maxOutputTokens: 500, thinkingConfig: { thinkingLevel: "LOW" } },
       }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
